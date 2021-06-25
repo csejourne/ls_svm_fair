@@ -167,8 +167,11 @@ def decision_fair(X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict, x_q):
     returns:
         scalar
     """
-    k_x = X - x_q.reshape((1, -1))
-    k_x = np.linalg.norm(k_x, axis=1)
+    n, p = X.shape
+    X = X.reshape((n, 1, p))
+    k_x = X - x_q.reshape((-1, p))
+    k_x = np.linalg.norm(k_x, axis=2)
+    k_x = np.squeeze(k_x)
     k_x = np.exp(-k_x ** 2/sigma)
 
     # h_1(X)^T \phi(x_q)
@@ -181,10 +184,11 @@ def decision_fair(X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict, x_q):
     n_neg_2 = np.sum(ind_dict['neg', 1])
     h_neg_xq = 1/n_neg_1 * ind_dict['neg', 0].T @ k_x - 1/n_neg_2 * ind_dict['neg', 1].T @ k_x
 
+    tmp = alpha.T @ k_x
     pred = alpha.T @ k_x + b + lambda_pos * h_pos_xq + lambda_neg * h_neg_xq 
     pred = np.squeeze(pred)
 
-    return float(pred)
+    return pred
 
 def decision_unfair(X, b, alpha, sigma, x_q):
     """
@@ -195,22 +199,26 @@ def decision_unfair(X, b, alpha, sigma, x_q):
         b: scalar
         alpha: (1D array)  lagrangian parameters
         sigma: (scalar) for kernel computation.
-        x_q: (1D array) data test (query)
+        x_q: (1D array or 2D array) data query, of shape (m , p) or (p,) where m>=1 is the number of queries.
 
     returns:
         scalar
     """
-    k_x = X - x_q.reshape((1, -1))
-    k_x = np.linalg.norm(k_x, axis=1)
+    n, p = X.shape
+    X = X.reshape((n, 1, p))
+    k_x = X - x_q.reshape((-1, p))
+    k_x = np.linalg.norm(k_x, axis=2)
+    k_x = np.squeeze(k_x)
     k_x = np.exp(-k_x ** 2/sigma)
+    print(f"k_x shape is {k_x.shape}")
 
     pred = alpha.T @ k_x + b
     pred = np.squeeze(pred)
 
-    return float(pred)
+    return pred
 
-def comp_fairness_constraints(pred_func, X, ind_dict):
-    """
-    Computes the value of the fairness constraints, to see how well they are respected by `pred_func`
-
-    """
+#def comp_fairness_constraints(pred_func, X, ind_dict):
+#    """
+#    Computes the value of the fairness constraints, to see how well they are respected by `pred_func`
+#
+#    """
