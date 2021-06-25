@@ -1,4 +1,3 @@
-import numpy as np
 import json
 import log_utils
 from pathlib import Path, WindowsPath, PosixPath
