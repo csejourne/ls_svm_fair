@@ -2,8 +2,6 @@ import numpy as np
 import numpy.random as rng
 from scipy.spatial.distance import pdist, squareform
 
-def tmp():
-    return np.zeros(4)
 
 def one_hot(idx, length):
     """
@@ -152,7 +150,8 @@ def build_system_matrix(X, sigma, gamma, cardinals, nu_list, ind_dict):
 
 def decision_fair(X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict, x_q):
     """
-    Computes the decision function of fairness-enhanced LS-SVM
+    Computes the decision function of fairness-enhanced LS-SVM.
+    WARNING: should be used with a low number of queries, otherwise it takes a lot of memory.
     
     Args:
         X: (2D array n x p) the training data set
@@ -161,18 +160,28 @@ def decision_fair(X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict, x_q):
         lambda_neg: scalar lagrangian parameter
         alpha: (1D array)  lagrangian parameters
         sigma: (scalar) for kernel computation.
-        x_q: (1D array) data test (query)
+        x_q: (1D array or 2D array) data query, of shape (m , p) or (p,) where m>=1 is the number of queries.
         ind_dict: (dict of vectors) indicator vectors for the classes.
 
     returns:
         scalar
     """
     n, p = X.shape
-    X = X.reshape((n, 1, p))
-    k_x = X - x_q.reshape((-1, p))
-    k_x = np.linalg.norm(k_x, axis=2)
-    k_x = np.squeeze(k_x)
-    k_x = np.exp(-k_x ** 2/sigma)
+    m, _ = x_q.shape
+    if m < n:
+        X = X.reshape((n, 1, p))
+        k_x = X - x_q.reshape((-1, p))
+        k_x = np.linalg.norm(k_x, axis=2)
+        k_x = np.squeeze(k_x)
+        k_x = np.exp(-k_x ** 2/sigma)
+
+    elif m==n:
+        assert np.allclose(X, x_q)
+        k_x = squareform(pdist(X, 'sqeuclidean'))
+        k_x = np.exp(-k_x/(2*sigma))
+
+    else:
+        raise ValueError("query is strange")
 
     # h_1(X)^T \phi(x_q)
     n_pos_1 = np.sum(ind_dict['pos', 0])
@@ -205,20 +214,51 @@ def decision_unfair(X, b, alpha, sigma, x_q):
         scalar
     """
     n, p = X.shape
-    X = X.reshape((n, 1, p))
-    k_x = X - x_q.reshape((-1, p))
-    k_x = np.linalg.norm(k_x, axis=2)
-    k_x = np.squeeze(k_x)
-    k_x = np.exp(-k_x ** 2/sigma)
-    print(f"k_x shape is {k_x.shape}")
+    m, _ = x_q.shape
+    if m < n: # should be a rather low number of queries
+        X = X.reshape((n, 1, p))
+        k_x = X - x_q.reshape((-1, p))
+        k_x = np.linalg.norm(k_x, axis=2)
+        k_x = np.squeeze(k_x)
+        k_x = np.exp(-k_x ** 2/sigma)
+    elif m == n: # when `x_q` == `X`  
+        assert np.allclose(X, x_q)
+        k_x = squareform(pdist(X, 'sqeuclidean'))
+        k_x = np.exp(-k_x/(2*sigma))
+
+    else: 
+        raise ValueError("your query is rather strange")
 
     pred = alpha.T @ k_x + b
     pred = np.squeeze(pred)
 
     return pred
 
-#def comp_fairness_constraints(pred_func, X, ind_dict):
-#    """
-#    Computes the value of the fairness constraints, to see how well they are respected by `pred_func`
-#
-#    """
+def comp_fairness_constraints(pred_func, X, ind_dict):
+    """
+    Computes the value of the fairness constraints, to see how well they are respected by `pred_func`.
+
+    Args:
+        `pred_func` should take only `X` as the parameters, i.e of the form `(n, p) -> (n,)`.
+        X (2D array): training dataset, shape (n, p)
+        ind_dict: as specified in above functions.
+
+    returns:
+        tuple of scalars
+    """ 
+    n, _ = X.shape
+    preds = pred_func(X)
+
+    # Positive constraint
+    card0 = np.sum(ind_dict[('pos', 0)])
+    card1 = np.sum(ind_dict[('pos', 1)])
+    pos_const = 1/card0 * np.sum(np.squeeze(ind_dict[('pos', 0)]) * preds) \
+            - 1/card1 * np.sum(np.squeeze(ind_dict[('pos', 1)]) * preds)
+    # Negative constraint
+    card0 = np.sum(ind_dict[('neg', 0)])
+    card1 = np.sum(ind_dict[('neg', 1)])
+    neg_const = 1/card0 * np.sum(np.squeeze(ind_dict[('neg', 0)]) * preds) \
+            - 1/card1 * np.sum(np.squeeze(ind_dict[('neg', 1)]) * preds)
+
+    return pos_const, neg_const
+    

@@ -2,8 +2,12 @@ import numpy as np
 import scipy.linalg as sp_linalg
 from functools import partial
 from tools import gen_dataset, build_system_matrix, one_hot, \
-            get_gaussian_kernel, decision_fair, decision_unfair
+            get_gaussian_kernel, decision_fair, decision_unfair, \
+            comp_fairness_constraints
 
+
+### Set the seed for reproducibility
+np.random.seed(12)
 
 ### Generate the data
 #mu_list = [np.array([1, 0, 0]), np.array([0, 1, 0])]
@@ -12,7 +16,8 @@ from tools import gen_dataset, build_system_matrix, one_hot, \
 mean_scal = 5
 cov_scal = 5e-1
 p = 512
-cardinals = [500, 300, 200, 400]
+cardinals = [200, 400, 500, 300]
+cardinals = [600, 200, 100, 500]
 n = sum(cardinals)
 #mu_list = [mean_scal * one_hot(0, p), mean_scal*one_hot(1, p)]
 mu_pos = one_hot(0, p)
@@ -56,3 +61,13 @@ rhs_unfair = np.concatenate([np.zeros(1), y])
 sol_unfair = sp_linalg.solve(matrix_unfair, rhs_unfair)
 # Build the fair decision function
 pred_function_unfair = partial(decision_unfair, X, b, alpha, sigma)
+
+### Compute predictions
+preds_fair = pred_function_fair(X)
+preds_unfair = pred_function_unfair(X)
+
+### Compare how well both predictions function satisfy fairness properties.
+pos_const_fair, neg_const_fair = comp_fairness_constraints(pred_function_fair, X, ind_dict)
+pos_const_unfair, neg_const_unfair = comp_fairness_constraints(pred_function_unfair, X, ind_dict)
+print(f"fair: {pos_const_fair}, {neg_const_fair}")
+print(f"unfair: {pos_const_unfair}, {neg_const_unfair}")
