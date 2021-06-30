@@ -1,13 +1,13 @@
 import numpy as np
 import numpy.random as rng
 from scipy.spatial.distance import pdist, squareform
+from sklearn import metrics
 
 
 def one_hot(idx, length):
     """
     Create one hot vector with 1 at `idx` and of length `length`
-    Args:
-        idx (int or list of ints)
+    Args: idx (int or list of ints)
         length (int)
         
     returns:
@@ -55,9 +55,19 @@ def gen_dataset(mu_list, cov_list, cardinals):
     n_pos = (cardinals[0] + cardinals[1])
     n_neg = (cardinals[2] + cardinals[3])
     
-    # Create the points from each class.
-    class_pos = rng.multivariate_normal(mu_pos, cov_pos, n_pos)
-    class_neg = rng.multivariate_normal(mu_neg, cov_neg, n_neg)
+    ## Create the points from each class.
+    #class_pos = rng.multivariate_normal(mu_pos, cov_pos, n_pos)
+    #class_neg = rng.multivariate_normal(mu_neg, cov_neg, n_neg)
+
+    # Class pos
+    class_pos_0 = rng.multivariate_normal(mu_pos, cov_pos, cardinals[0])
+    class_pos_1 = rng.multivariate_normal(mu_pos, 4*cov_pos, cardinals[1])
+    class_pos = np.concatenate([class_pos_0, class_pos_1], axis=0)
+
+    # Class neg
+    class_neg_0 = rng.multivariate_normal(mu_neg, cov_neg, cardinals[2])
+    class_neg_1 = rng.multivariate_normal(mu_neg, 4*cov_neg, cardinals[3])
+    class_neg = np.concatenate([class_neg_0, class_neg_1], axis=0)
 
     ### Create data
     X = np.concatenate([class_pos, class_neg], axis=0)
@@ -139,7 +149,7 @@ def build_system_matrix(X, sigma, gamma, cardinals, nu_list, ind_dict):
     matrix[3:, 2] = np.squeeze(H_neg)
     matrix[0, 3:] = 1
     matrix[1, 3:] = np.squeeze(nu_pos * H_pos.T)
-    matrix[2, 3:] = np.squeeze(nu_pos * H_neg.T)
+    matrix[2, 3:] = np.squeeze(nu_neg * H_neg.T)
     matrix[1, 1] = 1 + nu_pos * h_pos_pos
     matrix[2, 2] = 1 + nu_neg * h_neg_neg
     matrix[1, 2] = nu_pos * h_neg_pos
@@ -262,3 +272,66 @@ def comp_fairness_constraints(pred_func, X, ind_dict):
 
     return pos_const, neg_const
     
+def get_metrics(preds, y, ind_dict):
+    """
+    The metrics that interests us.
+    * Diff of False Positive Rate (FPR) between the sensitive label.
+    * Diff of False Negative Rate (FPR) between the sensitive label.
+    * precision
+    * recall
+
+    Args:
+        preds: 1D array
+        y: 1D array
+        ind_dict: dict of indicator vectors as stated in aforecommented functions.
+
+    returns:
+        dictionaries with keys "gen", "0", "1". Each value of this dict is a dict as well, containing metrics for the
+        specific scenario (general, for sensitive class 0, for sensitive class 1).
+    """
+    values = {"gen": {}, "0": {}, "1": {}} 
+
+    # Binarize labels
+    preds = (1+np.sign(preds))/2
+    y = (1+np.sign(y))/2
+    preds = preds.astype('int')
+    y = y.astype('int')
+
+    # Overall metrics.
+    prec = metrics.precision_score(y, preds) 
+    recall = metrics.recall_score(y, preds) 
+    conf_mat = metrics.confusion_matrix(y, preds, normalize='all')
+
+    values["gen"]["prec"] = np.copy(prec)
+    values["gen"]["recall"] = np.copy(recall)
+    values["gen"]["conf_mat"] = np.copy(conf_mat)
+
+    print(f"y is {y}")
+    print(f"preds is {preds}")
+    # For the sensitive value 0.
+    ind_0 = ind_dict[('pos', 0)] + ind_dict[('neg', 0)]
+    ind_0 = np.nonzero(np.squeeze(ind_0))
+    y_0 = y[ind_0]
+    preds_0 = preds[ind_0]
+    prec = metrics.precision_score(y_0, preds_0) 
+    recall = metrics.recall_score(y_0, preds_0) 
+    conf_mat = metrics.confusion_matrix(y_0, preds_0, normalize='all')
+
+    values["0"]["prec"] = np.copy(prec)
+    values["0"]["recall"] = np.copy(recall)
+    values["0"]["conf_mat"] = np.copy(conf_mat)
+
+    # For the sensitive value 1.
+    ind_1 = ind_dict[('pos', 1)] + ind_dict[('neg', 1)]
+    ind_1 = np.nonzero(np.squeeze(ind_1))
+    y_1 = y[ind_1]
+    preds_1 = preds[ind_1]
+    prec = metrics.precision_score(y_1, preds_1) 
+    recall = metrics.recall_score(y_1, preds_1) 
+    conf_mat = metrics.confusion_matrix(y_1, preds_1, normalize='all')
+
+    values["1"]["prec"] = np.copy(prec)
+    values["1"]["recall"] = np.copy(recall)
+    values["1"]["conf_mat"] = np.copy(conf_mat)
+
+    return values
