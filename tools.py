@@ -30,7 +30,11 @@ def gen_dataset(mu_list, cov_list, cardinals):
     We then assign a sensitive attribute to all the population with a correlation.
     Args:
         `mu_list`: (list of length 2 of 1D array) the means of the two classes
-        `cov_list`: (list of length 2 of 2D array) the covariances of the two classes
+        `cov_list`: (list of length 4 of 2D array) the covariances of the 4 subclasses
+            * (Y = 1, A = 0)
+            * (Y = 1, A = 1)
+            * (Y = -1, A = 0)
+            * (Y = -1, A = 1)
         `cardinals`: (list of 4 elements). Contains
             * number of points (Y = 1, A = 0)
             * number of points (Y = 1, A = 1)
@@ -46,8 +50,10 @@ def gen_dataset(mu_list, cov_list, cardinals):
 
     mu_pos = mu_list[0]
     mu_neg = mu_list[1]
-    cov_pos = cov_list[0]
-    cov_neg = cov_list[1]
+    cov_pos_0 = cov_list[0]
+    cov_pos_1 = cov_list[1]
+    cov_neg_0 = cov_list[2]
+    cov_neg_1 = cov_list[3]
     n = np.sum(cardinals)
     p = np.shape(mu_pos)[0]
 
@@ -60,13 +66,13 @@ def gen_dataset(mu_list, cov_list, cardinals):
     #class_neg = rng.multivariate_normal(mu_neg, cov_neg, n_neg)
 
     # Class pos
-    class_pos_0 = rng.multivariate_normal(mu_pos, cov_pos, cardinals[0])
-    class_pos_1 = rng.multivariate_normal(mu_pos, 4*cov_pos, cardinals[1])
+    class_pos_0 = rng.multivariate_normal(mu_pos, cov_pos_0, cardinals[0])
+    class_pos_1 = rng.multivariate_normal(mu_pos, cov_pos_1, cardinals[1])
     class_pos = np.concatenate([class_pos_0, class_pos_1], axis=0)
 
     # Class neg
-    class_neg_0 = rng.multivariate_normal(mu_neg, cov_neg, cardinals[2])
-    class_neg_1 = rng.multivariate_normal(mu_neg, 4*cov_neg, cardinals[3])
+    class_neg_0 = rng.multivariate_normal(mu_neg, cov_neg_0, cardinals[2])
+    class_neg_1 = rng.multivariate_normal(mu_neg, cov_neg_1, cardinals[3])
     class_neg = np.concatenate([class_neg_0, class_neg_1], axis=0)
 
     ### Create data
@@ -294,28 +300,33 @@ def get_metrics(preds, y, ind_dict):
     # Binarize labels
     preds = (1+np.sign(preds))/2
     y = (1+np.sign(y))/2
+    ### So that 0 is true, 1 is false. Needed for the confusion matrix later.
+    preds = 1 - preds
+    y = 1 - y
     preds = preds.astype('int')
     y = y.astype('int')
 
     # Overall metrics.
     prec = metrics.precision_score(y, preds) 
     recall = metrics.recall_score(y, preds) 
-    conf_mat = metrics.confusion_matrix(y, preds, normalize='all')
+    conf_mat = metrics.confusion_matrix(y, preds)
+    #conf_mat = metrics.confusion_matrix(y, preds, normalize='all')
 
     values["gen"]["prec"] = np.copy(prec)
     values["gen"]["recall"] = np.copy(recall)
     values["gen"]["conf_mat"] = np.copy(conf_mat)
+    values["gen"]["preds"] = np.copy(preds)
 
-    print(f"y is {y}")
-    print(f"preds is {preds}")
     # For the sensitive value 0.
     ind_0 = ind_dict[('pos', 0)] + ind_dict[('neg', 0)]
     ind_0 = np.nonzero(np.squeeze(ind_0))
     y_0 = y[ind_0]
     preds_0 = preds[ind_0]
+    print(f"length of preds_0: {preds_0.shape}")
     prec = metrics.precision_score(y_0, preds_0) 
     recall = metrics.recall_score(y_0, preds_0) 
-    conf_mat = metrics.confusion_matrix(y_0, preds_0, normalize='all')
+    conf_mat = metrics.confusion_matrix(y_0, preds_0)
+    #conf_mat = metrics.confusion_matrix(y_0, preds_0, normalize='all')
 
     values["0"]["prec"] = np.copy(prec)
     values["0"]["recall"] = np.copy(recall)
@@ -323,12 +334,15 @@ def get_metrics(preds, y, ind_dict):
 
     # For the sensitive value 1.
     ind_1 = ind_dict[('pos', 1)] + ind_dict[('neg', 1)]
+    print(f"sum `ind_1` is {sum(ind_1)}")
     ind_1 = np.nonzero(np.squeeze(ind_1))
     y_1 = y[ind_1]
     preds_1 = preds[ind_1]
+    print(f"length of preds_1: {preds_1.shape}")
     prec = metrics.precision_score(y_1, preds_1) 
     recall = metrics.recall_score(y_1, preds_1) 
-    conf_mat = metrics.confusion_matrix(y_1, preds_1, normalize='all')
+    conf_mat = metrics.confusion_matrix(y_1, preds_1)
+    #conf_mat = metrics.confusion_matrix(y_1, preds_1, normalize='all')
 
     values["1"]["prec"] = np.copy(prec)
     values["1"]["recall"] = np.copy(recall)

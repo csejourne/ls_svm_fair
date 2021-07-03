@@ -1,0 +1,15 @@
+{
+    "mean_scal": 5,
+    "cov_scal": 1.5,
+    "p": 512,
+    "cardinals": [
+        300,
+        150,
+        150,
+        250
+    ],
+    "nu_pos": 50,
+    "nu_neg": 50,
+    "gamma": 1
+
+}
