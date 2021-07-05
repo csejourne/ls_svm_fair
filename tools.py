@@ -48,31 +48,29 @@ def gen_dataset(mu_list, cov_list, cardinals):
         `ind_dict`: (dict of 1D array) dict of indicator vectors (the $j_{y, a}$).
     """
 
-    mu_pos = mu_list[0]
-    mu_neg = mu_list[1]
+    mu_pos_0 = mu_list[0]
+    mu_pos_1 = mu_list[1]
+    mu_neg_0 = mu_list[2]
+    mu_neg_1 = mu_list[3]
     cov_pos_0 = cov_list[0]
     cov_pos_1 = cov_list[1]
     cov_neg_0 = cov_list[2]
     cov_neg_1 = cov_list[3]
     n = np.sum(cardinals)
-    p = np.shape(mu_pos)[0]
+    p = np.shape(mu_pos_0)[0]
 
     # Compute the cardinals of each class
     n_pos = (cardinals[0] + cardinals[1])
     n_neg = (cardinals[2] + cardinals[3])
     
-    ## Create the points from each class.
-    #class_pos = rng.multivariate_normal(mu_pos, cov_pos, n_pos)
-    #class_neg = rng.multivariate_normal(mu_neg, cov_neg, n_neg)
-
     # Class pos
-    class_pos_0 = rng.multivariate_normal(mu_pos, cov_pos_0, cardinals[0])
-    class_pos_1 = rng.multivariate_normal(mu_pos, cov_pos_1, cardinals[1])
+    class_pos_0 = rng.multivariate_normal(mu_pos_0, cov_pos_0, cardinals[0])
+    class_pos_1 = rng.multivariate_normal(mu_pos_1, cov_pos_1, cardinals[1])
     class_pos = np.concatenate([class_pos_0, class_pos_1], axis=0)
 
     # Class neg
-    class_neg_0 = rng.multivariate_normal(mu_neg, cov_neg_0, cardinals[2])
-    class_neg_1 = rng.multivariate_normal(mu_neg, cov_neg_1, cardinals[3])
+    class_neg_0 = rng.multivariate_normal(mu_neg_0, cov_neg_0, cardinals[2])
+    class_neg_1 = rng.multivariate_normal(mu_neg_1, cov_neg_1, cardinals[3])
     class_neg = np.concatenate([class_neg_0, class_neg_1], axis=0)
 
     ### Create data
@@ -102,7 +100,7 @@ def get_gaussian_kernel(X, sigma):
     K = np.exp(-K/(2*sigma))
     return K
 
-def build_system_matrix(X, sigma, gamma, cardinals, nu_list, ind_dict):
+def build_system_matrix(X, sigma, gamma, cardinals, nu_list, ind_dict, mode="strict"):
     """
     Builds the system matrix to find the lagrangian parameters $b, \lambda_1, \lambda_{-1}, \alpha$ when using fairness
     constraints.
@@ -115,6 +113,7 @@ def build_system_matrix(X, sigma, gamma, cardinals, nu_list, ind_dict):
         cardinals: list of 4 ints as explained previously.
         nu_list: list of 2 scalars, regularization parameters.
         ind_dict: dict of indicator vectors, as explained above.
+        mode: (str) can be "strict" or "relaxed". Whether we enforce the fairness constraints exactly or approximatively.
 
     returns:
         matrix: (n+3)x(n+3) array.
@@ -150,17 +149,32 @@ def build_system_matrix(X, sigma, gamma, cardinals, nu_list, ind_dict):
 
     # Construct the system matrix
     matrix = np.zeros((n+3, n+3))
-    matrix[3:, 0] = 1
-    matrix[3:, 1] = np.squeeze(H_pos)
-    matrix[3:, 2] = np.squeeze(H_neg)
-    matrix[0, 3:] = 1
-    matrix[1, 3:] = np.squeeze(nu_pos * H_pos.T)
-    matrix[2, 3:] = np.squeeze(nu_neg * H_neg.T)
-    matrix[1, 1] = 1 + nu_pos * h_pos_pos
-    matrix[2, 2] = 1 + nu_neg * h_neg_neg
-    matrix[1, 2] = nu_pos * h_neg_pos
-    matrix[2, 1] = nu_neg * h_neg_pos
-    matrix[3:, 3:] = K + n/gamma * np.eye(n)
+    if mode == "relaxed":
+        matrix[3:, 0] = 1
+        matrix[3:, 1] = np.squeeze(H_pos)
+        matrix[3:, 2] = np.squeeze(H_neg)
+        matrix[0, 3:] = 1
+        matrix[1, 3:] = np.squeeze(nu_pos * H_pos.T)
+        matrix[2, 3:] = np.squeeze(nu_neg * H_neg.T)
+        matrix[1, 1] = 1 + nu_pos * h_pos_pos
+        matrix[2, 2] = 1 + nu_neg * h_neg_neg
+        matrix[1, 2] = nu_pos * h_neg_pos
+        matrix[2, 1] = nu_neg * h_neg_pos
+        matrix[3:, 3:] = K + n/gamma * np.eye(n)
+    elif mode == "strict":
+        matrix[3:, 0] = 1
+        matrix[3:, 1] = np.squeeze(H_pos)
+        matrix[3:, 2] = np.squeeze(H_neg)
+        matrix[0, 3:] = 1
+        matrix[1, 3:] = np.squeeze(H_pos.T)
+        matrix[2, 3:] = np.squeeze(H_neg.T)
+        matrix[1, 1] = h_pos_pos
+        matrix[2, 2] = h_neg_neg
+        matrix[1, 2] = h_neg_pos
+        matrix[2, 1] = h_neg_pos
+        matrix[3:, 3:] = K + n/gamma * np.eye(n)
+    else:
+        raise ValueError("Wrong value for mode")
 
     return matrix
 
@@ -250,20 +264,20 @@ def decision_unfair(X, b, alpha, sigma, x_q):
 
     return pred
 
-def comp_fairness_constraints(pred_func, X, ind_dict):
+def comp_fairness_constraints(preds, ind_dict, with_int=False):
     """
     Computes the value of the fairness constraints, to see how well they are respected by `pred_func`.
 
     Args:
-        `pred_func` should take only `X` as the parameters, i.e of the form `(n, p) -> (n,)`.
-        X (2D array): training dataset, shape (n, p)
+        preds: (array 1D) predictions to be assessed.
         ind_dict: as specified in above functions.
+        with_int: (bool) whether to compute the constraints for the output (real) or when taking the sign.
 
     returns:
         tuple of scalars
     """ 
-    n, _ = X.shape
-    preds = pred_func(X)
+    if with_int:
+        preds = np.sign(preds)
 
     # Positive constraint
     card0 = np.sum(ind_dict[('pos', 0)])
@@ -297,6 +311,7 @@ def get_metrics(preds, y, ind_dict):
     """
     values = {"gen": {}, "0": {}, "1": {}} 
 
+    true_preds = np.sign(preds)
     # Binarize labels
     preds = (1+np.sign(preds))/2
     y = (1+np.sign(y))/2
@@ -315,18 +330,16 @@ def get_metrics(preds, y, ind_dict):
     values["gen"]["prec"] = np.copy(prec)
     values["gen"]["recall"] = np.copy(recall)
     values["gen"]["conf_mat"] = np.copy(conf_mat)
-    values["gen"]["preds"] = np.copy(preds)
+    values["gen"]["preds"] = true_preds
 
     # For the sensitive value 0.
     ind_0 = ind_dict[('pos', 0)] + ind_dict[('neg', 0)]
     ind_0 = np.nonzero(np.squeeze(ind_0))
     y_0 = y[ind_0]
     preds_0 = preds[ind_0]
-    print(f"length of preds_0: {preds_0.shape}")
     prec = metrics.precision_score(y_0, preds_0) 
     recall = metrics.recall_score(y_0, preds_0) 
     conf_mat = metrics.confusion_matrix(y_0, preds_0)
-    #conf_mat = metrics.confusion_matrix(y_0, preds_0, normalize='all')
 
     values["0"]["prec"] = np.copy(prec)
     values["0"]["recall"] = np.copy(recall)
@@ -334,15 +347,12 @@ def get_metrics(preds, y, ind_dict):
 
     # For the sensitive value 1.
     ind_1 = ind_dict[('pos', 1)] + ind_dict[('neg', 1)]
-    print(f"sum `ind_1` is {sum(ind_1)}")
     ind_1 = np.nonzero(np.squeeze(ind_1))
     y_1 = y[ind_1]
     preds_1 = preds[ind_1]
-    print(f"length of preds_1: {preds_1.shape}")
     prec = metrics.precision_score(y_1, preds_1) 
     recall = metrics.recall_score(y_1, preds_1) 
     conf_mat = metrics.confusion_matrix(y_1, preds_1)
-    #conf_mat = metrics.confusion_matrix(y_1, preds_1, normalize='all')
 
     values["1"]["prec"] = np.copy(prec)
     values["1"]["recall"] = np.copy(recall)
