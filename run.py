@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.random as rng
 import pprint
 import copy
 import scipy.linalg as sp_linalg
@@ -27,19 +28,35 @@ mode = "strict" # how to enforce fairness constraints, can be {"strict", "relaxe
 gamma = conf_default.gamma
 gamma = 1
 mean_scal = conf_default.mean_scal
+mean_scal = 3
 cov_scal = conf_default.cov_scal
+cov_scal = 1
 p = conf_default.p
 cardinals = conf_default.cardinals
 sigma=p
 n = sum(cardinals)
 
 ### Data generation
-mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0,p), mean_scal*one_hot(1,p), mean_scal*one_hot(1,p)]
-cov_list = [cov_scal*np.eye(p), 2*cov_scal*np.eye(p),
-            cov_scal*np.eye(p), 2*cov_scal*np.eye(p)]
+#mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0,p), mean_scal*one_hot(1,p), mean_scal*one_hot(1,p)]
+#mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0,p), mean_scal*one_hot(1,p), mean_scal*one_hot(1,p)]
+# different means
+beta = 0.9
+w1 = rng.multivariate_normal(np.zeros(p), np.eye(p))
+w2 = rng.multivariate_normal(np.zeros(p), np.eye(p))
+mu_list = [mean_scal*one_hot(0, p),
+           beta*mean_scal*one_hot(0, p) + np.sqrt(1 - beta**2) * w1,
+           mean_scal*one_hot(1, p),
+           beta*mean_scal*one_hot(1, p) + np.sqrt(1 - beta**2) * w2
+           ]
+cov_list = [cov_scal*np.eye(p), cov_scal*np.eye(p),
+            cov_scal*np.eye(p), cov_scal*np.eye(p)]
 
 X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
 assert (n, p) == X.shape
+
+### Generate test dataset
+cardinals_test = [50, 50, 50, 50]
+X_test, y_test, sens_labels_test, ind_dict_test = gen_dataset(mu_list, cov_list, cardinals_test)
 
 ### Compute tau
 tau = np.trace(X @ X.T / p) / n
@@ -74,8 +91,8 @@ alpha = sol_unfair[1:]
 pred_function_unfair = partial(decision_unfair, X, b, alpha, sigma)
 
 ### Compute raw predictions in $\R$
-preds_fair = pred_function_fair(X)
-preds_unfair = pred_function_unfair(X)
+preds_fair = pred_function_fair(X_test)
+preds_unfair = pred_function_unfair(X_test)
 c2 = (cardinals[2] + cardinals[3])/n
 c1 = (cardinals[0] + cardinals[1])/n
 
@@ -84,18 +101,18 @@ preds_fair = preds_fair - (c1 - c2) # remove threshold
 preds_unfair = preds_unfair - (c1 - c2) # remove threshold
 
 ### Compare how well both predictions function satisfy fairness properties.
-pos_const_fair, neg_const_fair = comp_fairness_constraints(preds_fair, ind_dict)
-pos_const_unfair, neg_const_unfair = comp_fairness_constraints(preds_unfair, ind_dict)
-pos_const_fair_int, neg_const_fair_int = comp_fairness_constraints(preds_fair, ind_dict, with_int=True)
-pos_const_unfair_int, neg_const_unfair_int = comp_fairness_constraints(preds_unfair, ind_dict, with_int=True)
+pos_const_fair, neg_const_fair = comp_fairness_constraints(preds_fair, ind_dict_test)
+pos_const_unfair, neg_const_unfair = comp_fairness_constraints(preds_unfair, ind_dict_test)
+pos_const_fair_int, neg_const_fair_int = comp_fairness_constraints(preds_fair, ind_dict_test, with_int=True)
+pos_const_unfair_int, neg_const_unfair_int = comp_fairness_constraints(preds_unfair, ind_dict_test, with_int=True)
 print(f"FAIR: pos {pos_const_fair}, neg {neg_const_fair}")
 print(f"UNFAIR: pos {pos_const_unfair}, neg {neg_const_unfair}")
 print("")
 print(f"FAIR with int: pos {pos_const_fair_int}, neg {neg_const_fair_int}")
 print(f"UNFAIR with int: pos {pos_const_unfair_int}, neg {neg_const_unfair_int}")
 
-results_fair = get_metrics(preds_fair, y, ind_dict)
-results_unfair = get_metrics(preds_unfair, y, ind_dict)
+results_fair = get_metrics(preds_fair, y_test, ind_dict_test)
+results_unfair = get_metrics(preds_unfair, y_test, ind_dict_test)
 
 ### Plot the results.
 fig, axs = plt.subplots(2)
@@ -109,9 +126,10 @@ axs[1].plot(results_unfair["gen"]["preds"], 'x:k', mfc='blue', mec='blue', marke
 axs[1].set_title("Unfair classifier")
 
 # Markers and all
-tmp = np.cumsum(np.array(cardinals))
-axs[0].plot(np.zeros(n), '-k', linewidth=0.5)
-axs[1].plot(np.zeros(n), '-k', linewidth=0.5)
+tmp = np.cumsum(np.array(cardinals_test))
+n_test = np.sum(np.array(cardinals_test))
+axs[0].plot(np.zeros(n_test), '-k', linewidth=0.5)
+axs[1].plot(np.zeros(n_test), '-k', linewidth=0.5)
 axs[0].plot(tmp[0], 0, '|r')
 axs[0].plot(tmp[0], 0, '|r')
 axs[0].plot(tmp[1], 0, '|r')
@@ -120,5 +138,5 @@ axs[1].plot(tmp[0], 0, '|r')
 axs[1].plot(tmp[0], 0, '|r')
 axs[1].plot(tmp[1], 0, '|r')
 axs[1].plot(tmp[2], 0, '|r')
-fig.savefig(f"results/strict/figure.pdf")
+fig.savefig(f"results/strict/tmp.pdf")
     

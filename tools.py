@@ -1,6 +1,6 @@
 import numpy as np
 import numpy.random as rng
-from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.distance import pdist, squareform, cdist
 from sklearn import metrics
 
 
@@ -147,6 +147,9 @@ def build_system_matrix(X, sigma, gamma, cardinals, nu_list, ind_dict, mode="str
             - 1/(cardinals[2]*cardinals[1]) * ind_dict[('neg', 0)].T @ K @ ind_dict[('pos', 1)] \
             - 1/(cardinals[3]*cardinals[0]) * ind_dict[('neg', 1)].T @ K @ ind_dict[('pos', 0)]
 
+    print(f"h_pos_pos {h_pos_pos}")
+    print(f"h_neg_neg {h_neg_neg}")
+    print(f"h_neg_pos {h_neg_pos}")
     # Construct the system matrix
     matrix = np.zeros((n+3, n+3))
     if mode == "relaxed":
@@ -196,22 +199,8 @@ def decision_fair(X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict, x_q):
     returns:
         scalar
     """
-    n, p = X.shape
-    m, _ = x_q.shape
-    if m < n:
-        X = X.reshape((n, 1, p))
-        k_x = X - x_q.reshape((-1, p))
-        k_x = np.linalg.norm(k_x, axis=2)
-        k_x = np.squeeze(k_x)
-        k_x = np.exp(-k_x ** 2/sigma)
-
-    elif m==n:
-        assert np.allclose(X, x_q)
-        k_x = squareform(pdist(X, 'sqeuclidean'))
-        k_x = np.exp(-k_x/(2*sigma))
-
-    else:
-        raise ValueError("query is strange")
+    k_x = cdist(X, x_q, metric='sqeuclidean')
+    k_x = np.exp(-k_x / (2*sigma))
 
     # h_1(X)^T \phi(x_q)
     n_pos_1 = np.sum(ind_dict['pos', 0])
@@ -223,7 +212,6 @@ def decision_fair(X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict, x_q):
     n_neg_2 = np.sum(ind_dict['neg', 1])
     h_neg_xq = 1/n_neg_1 * ind_dict['neg', 0].T @ k_x - 1/n_neg_2 * ind_dict['neg', 1].T @ k_x
 
-    tmp = alpha.T @ k_x
     pred = alpha.T @ k_x + b + lambda_pos * h_pos_xq + lambda_neg * h_neg_xq 
     pred = np.squeeze(pred)
 
@@ -243,22 +231,8 @@ def decision_unfair(X, b, alpha, sigma, x_q):
     returns:
         scalar
     """
-    n, p = X.shape
-    m, _ = x_q.shape
-    if m < n: # should be a rather low number of queries
-        X = X.reshape((n, 1, p))
-        k_x = X - x_q.reshape((-1, p))
-        k_x = np.linalg.norm(k_x, axis=2)
-        k_x = np.squeeze(k_x)
-        k_x = np.exp(-k_x ** 2/sigma)
-    elif m == n: # when `x_q` == `X`  
-        assert np.allclose(X, x_q)
-        k_x = squareform(pdist(X, 'sqeuclidean'))
-        k_x = np.exp(-k_x/(2*sigma))
-
-    else: 
-        raise ValueError("your query is rather strange")
-
+    k_x = cdist(X, x_q, metric='sqeuclidean')
+    k_x = np.exp(-k_x/(2*sigma))
     pred = alpha.T @ k_x + b
     pred = np.squeeze(pred)
 
