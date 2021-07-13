@@ -52,7 +52,7 @@ for i in range(len(p_list)):
     n = sum(cardinals)
     
     mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
-               mean_scal * one_hot(2, p), mean_scal * one_hot(2, p)]
+               mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
     cov_list = [cov_scal*np.eye(p), cov_scal*np.eye(p),
                 cov_scal*np.eye(p), cov_scal*np.eye(p)]
     
@@ -71,37 +71,34 @@ for i in range(len(p_list)):
     A_sqrt_n = build_A_sqrt_n(cardinals, cov_list, V)
     A_n = build_A_n(tau, len(cardinals), p, V)
     
-#    P = np.eye(n) - 1/n * np.ones((n,n))
-#    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * P)
-#    
-#    C_n = build_C_n(A_1, A_sqrt_n, A_n, tau, gamma, W.T)
-#    C_sqrt_n = build_C_sqrt_n(A_sqrt_n, A_n, tau, gamma)
-#    C_1 = build_C_1(A_n, tau, gamma)
-#    
-#    D_1 = build_D_1(C_n, C_sqrt_n, C_1, A_1, A_sqrt_n, A_n, W.T, tau)
-#    D_sqrt_n = build_D_sqrt_n(C_sqrt_n, C_1, A_sqrt_n, A_n, tau)
-#    D_n = build_D_n(C_1, A_n, tau)
-#
+    C_n = build_C_n(A_1, A_sqrt_n, A_n, tau, gamma, W.T)
+    C_sqrt_n = build_C_sqrt_n(A_sqrt_n, A_n, tau, gamma)
+    C_1 = build_C_1(A_n, tau, gamma)
+    
+    D_1 = build_D_1(C_n, C_sqrt_n, C_1, A_1, A_sqrt_n, A_n, W.T, tau)
+    D_sqrt_n = build_D_sqrt_n(C_sqrt_n, C_1, A_sqrt_n, A_n, tau)
+    D_n = build_D_n(C_1, A_n, tau)
+
 #    print("For A")
-    A_1_list.append(np.linalg.norm(A_1, ord=2))
-    A_sqrt_n_list.append(np.linalg.norm(A_sqrt_n, ord=2))
-    A_n_list.append(np.linalg.norm(A_n, ord=2))
+#    A_1_list.append(np.linalg.norm(A_1, ord=2))
+#    A_sqrt_n_list.append(np.linalg.norm(A_sqrt_n, ord=2))
+#    A_n_list.append(np.linalg.norm(A_n, ord=2))
 #    print("For C")
 #    C_1_list.append(np.linalg.norm(C_1, ord=2))
 #    C_sqrt_n_list.append(np.linalg.norm(C_sqrt_n, ord=2))
 #    C_n_list.append(np.linalg.norm(C_n, ord=2))
-#    print("For D")
-#    D_1_list.append(np.linalg.norm(D_1, ord=2))
-#    D_sqrt_n_list.append(np.linalg.norm(D_sqrt_n, ord=2))
-#    D_n_list.append(np.linalg.norm(D_n, ord=2))
+    print("For D")
+    D_1_list.append(np.linalg.norm(D_1, ord=2))
+    D_sqrt_n_list.append(np.linalg.norm(D_sqrt_n, ord=2))
+    D_n_list.append(np.linalg.norm(D_n, ord=2))
 #
 print("Results of operator norms")
-print("A_1: ", A_1_list[1]/A_1_list[0])
-print("A_sqrt_n: ", A_sqrt_n_list[1]/A_sqrt_n_list[0])
-print("A_n: ", A_n_list[1]/A_n_list[0])
+#print("A_1: ", A_1_list[1]/A_1_list[0])
+#print("A_sqrt_n: ", A_sqrt_n_list[1]/A_sqrt_n_list[0])
+#print("A_n: ", A_n_list[1]/A_n_list[0])
 #print("C_1: ", C_1_list[1]/C_1_list[0])
 #print("C_sqrt_n: ", C_sqrt_n_list[1]/C_sqrt_n_list[0])
 #print("C_n: ", C_n_list[1]/C_n_list[0])
-#print("D_1: ", D_1_list[1]/D_1_list[0])
-#print("D_sqrt_n: ", D_sqrt_n_list[1]/D_sqrt_n_list[0])
-#print("D_n: ", D_n_list[1]/D_n_list[0])
+print("D_1: ", D_1_list[1]/D_1_list[0])
+print("D_sqrt_n: ", D_sqrt_n_list[1]/D_sqrt_n_list[0])
+print("D_n: ", D_n_list[1]/D_n_list[0])

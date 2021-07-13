@@ -427,8 +427,7 @@ def build_A_n(tau, k, p, V):
     A_n[:k, :k] = 1
     A_n = - f(tau) * p /(2 * f_p(tau)) * A_n 
 
-    #return V @ A_n @ V.T
-    return A_n 
+    return V @ A_n @ V.T
 
 def build_A_sqrt_n(cardinals, cov_list, V):
     """
@@ -453,8 +452,7 @@ def build_A_sqrt_n(cardinals, cov_list, V):
     A_sqrt_n[:k, -3] = 1
     A_sqrt_n[-3, :k] = 1
 
-    #return -np.sqrt(p)/2 * V @ A_sqrt_n @ V.T
-    return -np.sqrt(p)/2 *  A_sqrt_n 
+    return -np.sqrt(p)/2 * V @ A_sqrt_n @ V.T
 
 def build_A_1(cardinals, mu_list, cov_list, tau, V):
     """
@@ -504,8 +502,7 @@ def build_A_1(cardinals, mu_list, cov_list, tau, V):
 
     A_1[-3, -3] = - f_pp(tau)/(2*f_p(tau))
 
-    #return V @ A_1 @ V.T
-    return  A_1 
+    return V @ A_1 @ V.T
 
 def build_C_1(A_n, tau, gamma):
     n = A_n.shape[0]
