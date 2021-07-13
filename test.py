@@ -11,7 +11,7 @@ from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, \
                 build_C_1, build_C_sqrt_n, build_C_n, build_D_1, build_D_sqrt_n, \
                 build_D_n, one_hot, gen_dataset
 
-from tools import f, f_p, f_pp, old_build_V, old_gen_data_gaussian, old_build_A_1, old_build_A_n, old_build_A_sqrt_n
+from tools import f, f_p, f_pp 
 
 ### NumPy print threshold size.
 np.set_printoptions(threshold = 100)
@@ -57,17 +57,12 @@ for i in range(len(p_list)):
                 cov_scal*np.eye(p), cov_scal*np.eye(p)]
     
     X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
-    assert (n, p) == X.shape
     # extract the noise. WARNING: scaled by 1/sqrt(p) as in KSC.
     W = extract_W(X, mu_list, cardinals)
-    #X, mu, W = old_gen_data_gaussian(mu_list, np.array(cardinals), p, cov_scal)
-    #X = X.T
-    #W = W.T
     assert (n, p) == X.shape
     
     # need to transpose W for this function
     V = build_V(mu_list, cardinals, W.T, cov_list)
-    V2 = old_build_V(mu_list, np.array(cardinals), W.T, cov_scal)
     
     ### Compute tau
     tau = np.trace(X @ X.T / p) / n
@@ -76,16 +71,6 @@ for i in range(len(p_list)):
     A_sqrt_n = build_A_sqrt_n(cardinals, cov_list, V)
     A_n = build_A_n(tau, len(cardinals), p, V)
     
-    A_12 = old_build_A_1(mu_list, n, cov_scal)
-    A_sqrt_n2 = old_build_A_sqrt_n(k, n, p)
-    A_n2 = old_build_A_n(cov_scal, k, p, n)
-
-    print(f"A_0: {np.max(np.abs(A_1 - A_12))}")
-    print(f"A_sqrt_n: {np.max(np.abs(A_sqrt_n - A_sqrt_n2))}")
-    print(f"A_n: {np.max(np.abs(A_n - A_n2))}")
-    print(f"with V ; A_1: {np.max(np.abs(V @ A_1 @ V.T - V2 @ A_12 @ V2.T))}")
-    print(f"with V ; A_sqrt_n: {np.max(np.abs(V @ A_sqrt_n @ V.T - V2 @ A_sqrt_n2 @ V2.T))}")
-    print(f"with V ; A_n: {np.max(np.abs(V @ A_n @ V.T - V2 @ A_n2 @ V2.T))}")
 #    P = np.eye(n) - 1/n * np.ones((n,n))
 #    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * P)
 #    
