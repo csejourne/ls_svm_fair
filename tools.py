@@ -383,21 +383,14 @@ def build_V(mu_list, cardinals, W, cov_list):
         J[:, i] = one_hot(tmp, n)
     V.append(J/np.sqrt(p))
 
-    """
-    WARNING: remove the `circ` everywhere and see if it changes.
-    """
-    mu_circ = np.zeros(p)
-    for i in range(k):
-        mu_circ += cardinals[i]/n * mu_list[i]
-    mu_list_circ = [(mu_list[i] - mu_circ).reshape((-1, 1)) for i in range(k)]
     ### Build the $v_a$ and append them for V.
     for i in range(k):
-        V.append(W.T @ mu_list_circ[i].reshape((-1, 1)))
+        V.append(W.T @ mu_list[i].reshape((-1, 1)))
 
     ### Build the $\tilde{v}$.
     tilde_v = np.zeros((n, 1))
     for i in range(k):
-        tmp = W[:, idxs[i]:idxs[i+1]].T @ mu_list_circ[i].reshape((-1, 1))
+        tmp = W[:, idxs[i]:idxs[i+1]].T @ mu_list[i].reshape((-1, 1))
         tilde_v[idxs[i]:idxs[i+1], :] = np.copy(tmp.reshape((-1, 1)))
     V.append(tilde_v)
 
