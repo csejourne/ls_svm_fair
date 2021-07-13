@@ -64,9 +64,9 @@ V = build_V(mu_list, cardinals, W.T, cov_list)
 ### Compute tau
 tau = np.trace(X @ X.T / p) / n
 
-A_n = build_A_n(tau, len(cardinals), p)
-A_sqrt_n = build_A_sqrt_n(cardinals, cov_list)
-A_1 = build_A_1(cardinals, mu_list, cov_list, tau)
+A_n = build_A_n(tau, len(cardinals), p, V)
+A_sqrt_n = build_A_sqrt_n(cardinals, cov_list, V)
+A_1 = build_A_1(cardinals, mu_list, cov_list, tau, V)
 
 #### Building the fair prediction function
 ## Get solution parameters.

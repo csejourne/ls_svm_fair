@@ -383,22 +383,29 @@ def build_V(mu_list, cardinals, W, cov_list):
         J[:, i] = one_hot(tmp, n)
     V.append(J/np.sqrt(p))
 
+    """
+    WARNING: remove the `circ` everywhere and see if it changes.
+    """
+    mu_circ = np.zeros(p)
+    for i in range(k):
+        mu_circ += cardinals[i]/n * mu_list[i]
+    mu_list_circ = [(mu_list[i] - mu_circ).reshape((-1, 1)) for i in range(k)]
     ### Build the $v_a$ and append them for V.
     for i in range(k):
-        V.append(W.T @ mu_list[i].reshape((-1, 1)))
+        V.append(W.T @ mu_list_circ[i].reshape((-1, 1)))
 
     ### Build the $\tilde{v}$.
     tilde_v = np.zeros((n, 1))
     for i in range(k):
-        tmp = W[:, idxs[i]:idxs[i+1]].T @ mu_list[i].reshape((-1, 1))
+        tmp = W[:, idxs[i]:idxs[i+1]].T @ mu_list_circ[i].reshape((-1, 1))
         tilde_v[idxs[i]:idxs[i+1], :] = np.copy(tmp.reshape((-1, 1)))
     V.append(tilde_v)
 
-    ### Build the $\psi_circ$
+    ### Build the $\psi_circ$ or just $\psi$
     tmp = [np.tile(np.trace(cov_list[i]), [cardinals[i], 1]) for i in range(k)]
     tmp = np.concatenate(tmp)
     psi = np.diag(W.T @ W).reshape((-1, 1))
-    psi = psi - 1/p * tmp
+    psi = psi - (1-1/n)*1/p * tmp
     V.append(psi)
     V.append(np.sqrt(p) * psi**2)
 
@@ -410,7 +417,7 @@ def build_V(mu_list, cardinals, W, cov_list):
     psi_tilde = diag @ psi
     V.append(psi_tilde)
     
-    V = np.concatenate(V, axis=-1)
+    #V = np.concatenate(V, axis=-1)
 
     return V
 
@@ -648,7 +655,7 @@ def old_build_V(means, ns, W, eps):
     ### The related vector is null in our case (same covariance for all the classes)
     V.append(np.zeros((n, 1)))
     
-    V = np.concatenate(V, axis=-1)
+    #V = np.concatenate(V, axis=-1)
 
     return V
 
