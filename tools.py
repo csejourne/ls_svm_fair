@@ -417,7 +417,7 @@ def build_V(mu_list, cardinals, W, cov_list):
     psi_tilde = diag @ psi
     V.append(psi_tilde)
     
-    #V = np.concatenate(V, axis=-1)
+    V = np.concatenate(V, axis=-1)
 
     return V
 
@@ -655,7 +655,7 @@ def old_build_V(means, ns, W, eps):
     ### The related vector is null in our case (same covariance for all the classes)
     V.append(np.zeros((n, 1)))
     
-    #V = np.concatenate(V, axis=-1)
+    V = np.concatenate(V, axis=-1)
 
     return V
 
