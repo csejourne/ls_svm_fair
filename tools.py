@@ -371,8 +371,7 @@ def build_V(mu_list, cardinals, W, cov_list):
     k = len(cardinals)
     p = W.shape[0]
     assert len(mu_list) == k
-    P = np.eye(n) - 1/n * np.ones((n,n))
-    W = W @ P
+    #P = np.eye(n) - 1/n * np.ones((n,n))
     
     ### Create the J matrix.
     J = np.zeros((n, k))
@@ -398,7 +397,7 @@ def build_V(mu_list, cardinals, W, cov_list):
     tmp = [np.tile(np.trace(cov_list[i]), [cardinals[i], 1]) for i in range(k)]
     tmp = np.concatenate(tmp)
     psi = np.diag(W.T @ W).reshape((-1, 1))
-    psi = psi - (1-1/n)*1/p * tmp
+    psi = psi - 1/p * tmp
     V.append(psi)
     V.append(np.sqrt(p) * psi**2)
 
