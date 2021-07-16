@@ -95,9 +95,18 @@ def gen_dataset(mu_list, cov_list, cardinals):
 
     return X, y, sens_labels, ind_dict
 
+def f(x):
+    return np.exp(-x/2)
+
+def f_p(x):
+    return -1/2*np.exp(-x/2)
+
+def f_pp(x):
+    return 1/4*np.exp(-x/2)
+
 def get_gaussian_kernel(X, sigma):
     K = squareform(pdist(X, 'sqeuclidean'))
-    K = np.exp(-K/(2*sigma))
+    K = f(K/sigma)
     return K
 
 def build_system_matrix(X, sigma, gamma, cardinals, nu_list, ind_dict, mode="strict"):
@@ -197,7 +206,7 @@ def decision_fair(X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict, x_q):
         scalar
     """
     k_x = cdist(X, x_q, metric='sqeuclidean')
-    k_x = np.exp(-k_x / (2*sigma))
+    k_x = f(k_x / sigma)
 
     # h_1(X)^T \phi(x_q)
     n_pos_1 = np.sum(ind_dict['pos', 0])
@@ -229,7 +238,7 @@ def decision_unfair(X, b, alpha, sigma, x_q):
         scalar
     """
     k_x = cdist(X, x_q, metric='sqeuclidean')
-    k_x = np.exp(-k_x/(2*sigma))
+    k_x = f(k_x/sigma)
     pred = alpha.T @ k_x + b
     pred = np.squeeze(pred)
 
@@ -343,15 +352,6 @@ def extract_W(X, mu_list, cardinals):
     assert mu.shape[0] == n
     W = X - mu
     return W/np.sqrt(p)
-
-def f(x):
-    return np.exp(-x/2)
-
-def f_p(x):
-    return -1/2*np.exp(-x/2)
-
-def f_pp(x):
-    return 1/4*np.exp(-x/2)
 
 def build_V(mu_list, cardinals, W, cov_list):
     """
