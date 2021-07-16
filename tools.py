@@ -340,10 +340,6 @@ def get_metrics(preds, y, ind_dict):
 
     return values
 
-"""
-Below are functions for formulae, for debug.
-"""
-
 def extract_W(X, mu_list, cardinals):
     n, p = X.shape
     k = len(cardinals)
@@ -379,8 +375,7 @@ def build_objects(mu_list, cardinals, cov_list):
         J[:, i] = one_hot(tmp, n)
 
     ### Build the $M$
-    mu_circ = sum([cardinals[i]/n * mu_list[i] for i in range(k)])
-    M = [(mu_list[i] - mu_circ).reshape((-1, 1)) for i in range(k)]
+    M = [mu_list[i].reshape((-1, 1)) for i in range(k)]
     M = np.concatenate(M, axis=1)
 
     ### Build $t$
@@ -451,6 +446,7 @@ def build_A_n(tau, k, p, V):
         tau: (float)
         k: (int)
         p: (int) 
+        V: (2D array)
 
     returns:
         the A_n matrix
@@ -465,6 +461,8 @@ def build_A_sqrt_n(t, p, V):
     """
     Args:
         p: (int) 
+        t: (1D array)
+        V: (2D array)
 
     returns:
         the A_sqrt_n matrix
@@ -483,8 +481,10 @@ def build_A_1(mu_list, t, S, tau, V):
     """
     Args:
         mu_list: (list of 1d array)
-        n: (1d array) 
-        eps: (float) 
+        t: (1D array)
+        S: (2D array) (k,k)
+        tau: float
+        V: (2D array)
 
     returns:
         the A_1 matrix
@@ -523,6 +523,10 @@ def build_A_1(mu_list, t, S, tau, V):
 
     return V @ A_1 @ V.T
 
+
+"""
+Below are functions for formulae, for debug.
+"""
 def build_C_1(A_n, tau, gamma):
     n = A_n.shape[0]
     P = np.eye(n) - 1/n * np.ones((n,n))

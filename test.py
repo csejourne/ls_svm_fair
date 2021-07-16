@@ -18,7 +18,7 @@ from tools import f, f_p, f_pp, build_objects
 np.set_printoptions(threshold = 100)
 
 ### Set the seed for reproducibility
-#np.random.seed(12)
+np.random.seed(12)
 
 ### Get default config for experiments.
 conf_default = Config(Path('conf_default.json'))
@@ -26,13 +26,10 @@ conf_default = Config(Path('conf_default.json'))
 ### Hyperparameters
 gamma = 1
 mean_scal = 5
-cov_scal = 1e-1
+cov_scal = 1
 print(f"cov_scal is {cov_scal}")
 
-#list_cardinals = [[150, 350, 250], [300, 700, 500]]
-#p_list = [512, 1024]
-#list_cardinals = [[300, 150, 150, 250], [600, 300, 300, 500]]
-list_cardinals = [[200, 200, 200, 200], [400, 400, 400, 400]]
+list_cardinals = [[300, 150, 150, 250], [600, 300, 300, 500]]
 p_list = [512, 1024]
 A_1_list = []
 A_sqrt_n_list = []
@@ -43,10 +40,7 @@ C_n_list = []
 D_1_list = []
 D_sqrt_n_list = []
 D_n_list = []
-K_list = []
-K_app_list= []
 K_diff_list = []
-tau_diff_list = []
 
 for i in range(len(p_list)):
     cardinals = list_cardinals[i]
@@ -67,44 +61,26 @@ for i in range(len(p_list)):
     W = extract_W(X, mu_list, cardinals)
     K = get_gaussian_kernel(X, sigma)
     assert (n, p) == X.shape
-    
-    # need to transpose W for this function
     J, M, t, S = build_objects(mu_list, cardinals, cov_list)
     
     # Build V
     V = build_V(cardinals, mu_list, cov_list, J, W.T, M, t)
 
-    ### Compute tau
     # estimator
     #tau = np.sum(squareform(pdist(X, 'sqeuclidean')))
     #tau = tau/(p * n *(n-1))
-    # theoretical value. DOES NOT WORK WELL. too theoretical i think.
+    # theoretical value.
     tau = np.trace(sum([cardinals[i]/n * cov_list[i] for i in range(len(cov_list))]))
     tau = 2*tau/p
-    print(f"tau is {tau}")
+    beta = f(0) - f(tau) + tau*f_p(tau)
     
     A_1 = build_A_1(mu_list, t, S, tau, V)
     A_sqrt_n = build_A_sqrt_n(t, p, V)
     A_n = build_A_n(tau, k, p, V)
     
-    #C_n = build_C_n(A_1, A_sqrt_n, A_n, tau, gamma, W.T)
-    #C_sqrt_n = build_C_sqrt_n(A_sqrt_n, A_n, tau, gamma)
-    #C_1 = build_C_1(A_n, tau, gamma)
-    #
-    #D_1 = build_D_1(C_n, C_sqrt_n, C_1, A_1, A_sqrt_n, A_n, W.T, tau)
-    #D_sqrt_n = build_D_sqrt_n(C_sqrt_n, C_1, A_sqrt_n, A_n, tau)
-    #D_n = build_D_n(C_1, A_n, tau)
-    #P = np.eye(n) - 1/n * np.ones((n,n))
-
-    beta = f(0) - f(tau) + tau*f_p(tau)
-    print(f"beta is {beta}")
     A = A_1 + A_sqrt_n + A_n
-    #K_app = -2*f_p(tau) * (P @ W @ W.T @ P + A) + beta*np.eye(n)
     K_app = -2*f_p(tau) * (1/p * W @ W.T + A) + beta*np.eye(n)
 
-#    P = np.eye(n) - 1/n * np.ones((n,n))
-#    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * P)
-#    
 #    C_n = build_C_n(A_1, A_sqrt_n, A_n, tau, gamma, W.T)
 #    C_sqrt_n = build_C_sqrt_n(A_sqrt_n, A_n, tau, gamma)
 #    C_1 = build_C_1(A_n, tau, gamma)
@@ -114,28 +90,26 @@ for i in range(len(p_list)):
 #    D_n = build_D_n(C_1, A_n, tau)
 #
     print("For K")
-    K_list.append(np.copy(K))
-    K_app_list.append(np.copy(K_app))
     K_diff_list.append(np.linalg.norm(K - K_app, ord=2))
     print("For A")
-    A_1_list.append(np.linalg.norm(A_1, ord=2))
-    A_sqrt_n_list.append(np.linalg.norm(A_sqrt_n, ord=2))
-    A_n_list.append(np.linalg.norm(A_n, ord=2))
-#    print("For C")
-#    C_1_list.append(np.linalg.norm(C_1, ord=2))
-#    C_sqrt_n_list.append(np.linalg.norm(C_sqrt_n, ord=2))
-#    C_n_list.append(np.linalg.norm(C_n, ord=2))
-#    print("For D")
-#    D_1_list.append(np.linalg.norm(D_1, ord=2))
-#    D_sqrt_n_list.append(np.linalg.norm(D_sqrt_n, ord=2))
-#    D_n_list.append(np.linalg.norm(D_n, ord=2))
-#
+    #A_1_list.append(np.linalg.norm(A_1, ord=2))
+    #A_sqrt_n_list.append(np.linalg.norm(A_sqrt_n, ord=2))
+    #A_n_list.append(np.linalg.norm(A_n, ord=2))
+    #print("For C")
+    #C_1_list.append(np.linalg.norm(C_1, ord=2))
+    #C_sqrt_n_list.append(np.linalg.norm(C_sqrt_n, ord=2))
+    #C_n_list.append(np.linalg.norm(C_n, ord=2))
+    #print("For D")
+    #D_1_list.append(np.linalg.norm(D_1, ord=2))
+    #D_sqrt_n_list.append(np.linalg.norm(D_sqrt_n, ord=2))
+    #D_n_list.append(np.linalg.norm(D_n, ord=2))
+
 print("")
 print("Results of operator norms")
 print("K: ", K_diff_list[1]/K_diff_list[0])
-print("A_1: ", A_1_list[1]/A_1_list[0])
-print("A_sqrt_n: ", A_sqrt_n_list[1]/A_sqrt_n_list[0])
-print("A_n: ", A_n_list[1]/A_n_list[0])
+#print("A_1: ", A_1_list[1]/A_1_list[0])
+#print("A_sqrt_n: ", A_sqrt_n_list[1]/A_sqrt_n_list[0])
+#print("A_n: ", A_n_list[1]/A_n_list[0])
 #print("C_1: ", C_1_list[1]/C_1_list[0])
 #print("C_sqrt_n: ", C_sqrt_n_list[1]/C_sqrt_n_list[0])
 #print("C_n: ", C_n_list[1]/C_n_list[0])
