@@ -18,7 +18,7 @@ from tools import f, f_p, f_pp, build_objects
 np.set_printoptions(threshold = 100)
 
 ### Set the seed for reproducibility
-np.random.seed(12)
+#np.random.seed(12)
 
 ### Get default config for experiments.
 conf_default = Config(Path('conf_default.json'))
@@ -26,12 +26,13 @@ conf_default = Config(Path('conf_default.json'))
 ### Hyperparameters
 gamma = 1
 mean_scal = 5
-cov_scal = 1e-4
+cov_scal = 1e-1
 print(f"cov_scal is {cov_scal}")
 
 #list_cardinals = [[150, 350, 250], [300, 700, 500]]
 #p_list = [512, 1024]
-list_cardinals = [[300, 150, 150, 250], [600, 300, 300, 500]]
+#list_cardinals = [[300, 150, 150, 250], [600, 300, 300, 500]]
+list_cardinals = [[200, 200, 200, 200], [400, 400, 400, 400]]
 p_list = [512, 1024]
 A_1_list = []
 A_sqrt_n_list = []
@@ -50,13 +51,13 @@ tau_diff_list = []
 for i in range(len(p_list)):
     cardinals = list_cardinals[i]
     p = p_list[i]
-    print("cardinals: ", cardinals, "\t p: ", p)
+    print("\ncardinals: ", cardinals, "\t p: ", p)
     k = len(cardinals)
     sigma=p
     n = sum(cardinals)
     
-    mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
-               mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
+    mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
+               mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
     cov_list = [cov_scal*np.eye(p), cov_scal*np.eye(p),
                 cov_scal*np.eye(p), cov_scal*np.eye(p)]
     
@@ -75,11 +76,11 @@ for i in range(len(p_list)):
 
     ### Compute tau
     # estimator
-    tau = np.sum(squareform(pdist(X, 'sqeuclidean')))
-    tau = tau/(p * n *(n-1))
+    #tau = np.sum(squareform(pdist(X, 'sqeuclidean')))
+    #tau = tau/(p * n *(n-1))
     # theoretical value. DOES NOT WORK WELL. too theoretical i think.
-    #tau = np.trace(sum([cardinals[i]/n * cov_list[i] for i in range(len(cov_list))]))
-    #tau = 2*tau/p
+    tau = np.trace(sum([cardinals[i]/n * cov_list[i] for i in range(len(cov_list))]))
+    tau = 2*tau/p
     print(f"tau is {tau}")
     
     A_1 = build_A_1(mu_list, t, S, tau, V)
