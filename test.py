@@ -12,7 +12,7 @@ from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, \
                 build_C_1, build_C_sqrt_n, build_C_n, build_D_1, build_D_sqrt_n, \
                 build_D_n, one_hot, gen_dataset, get_gaussian_kernel
 
-from tools import f, f_p, f_pp 
+from tools import f, f_p, f_pp, build_objects
 
 ### NumPy print threshold size.
 np.set_printoptions(threshold = 100)
@@ -69,12 +69,13 @@ for i in range(len(p_list)):
     assert (n, p) == X.shape
     
     # need to transpose W for this function
-    V = build_V(mu_list, cardinals, W.T, cov_list)
+    J, M, t, S = build_objects(mu_list, cardinals, cov_list)
     
+    # Build V
+    V = build_V(cardinals, mu_list, cov_list, J, W.T, M, t)
+
     ### Compute tau
-    # First
-    #tau = 2*np.trace(X @ X.T / p) / n
-    # Second
+    # estimator
     tau = np.sum(squareform(pdist(X, 'sqeuclidean')))
     tau = tau/(p * n *(n-1))
     # Third DOES NOT WORK WELL. too theoretical i think.
@@ -101,12 +102,6 @@ for i in range(len(p_list)):
     K_app = -2*f_p(tau) * (P @ W @ W.T @ P + A) + beta*np.eye(n)
     #K_app = -2*f_p(tau) * (W @ W.T + A) + beta*np.eye(n)
 
-    #print(f"A_0: {np.max(np.abs(A_1 - V2 @ A_12 @ V2.T))}")
-    #print(f"A_sqrt_n: {np.max(np.abs(A_sqrt_n - V2 @ A_sqrt_n2 @ V2.T))}")
-    #print(f"A_n: {np.max(np.abs(A_n - V2 @ A_n2 @ V2.T))}")
-    #print(f"with V ; A_1: {np.max(np.abs(V @ A_1 @ V.T - V2 @ A_12 @ V2.T))}")
-    #print(f"with V ; A_sqrt_n: {np.max(np.abs(V @ A_sqrt_n @ V.T - V2 @ A_sqrt_n2 @ V2.T))}")
-    #print(f"with V ; A_n: {np.max(np.abs(V @ A_n @ V.T - V2 @ A_n2 @ V2.T))}")
 #    P = np.eye(n) - 1/n * np.ones((n,n))
 #    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * P)
 #    
@@ -122,6 +117,7 @@ for i in range(len(p_list)):
     K_list.append(np.copy(K))
     K_app_list.append(np.copy(K_app))
     K_diff_list.append(np.linalg.norm(K - K_app, ord=2))
+    tau_diff_list.append(tau - tau_th)
 #    print("For A")
 #    A_1_list.append(np.linalg.norm(A_1, ord=2))
 #    A_sqrt_n_list.append(np.linalg.norm(A_sqrt_n, ord=2))
@@ -135,8 +131,10 @@ for i in range(len(p_list)):
 #    D_sqrt_n_list.append(np.linalg.norm(D_sqrt_n, ord=2))
 #    D_n_list.append(np.linalg.norm(D_n, ord=2))
 #
+print("")
 print("Results of operator norms")
 print("K: ", K_diff_list[1]/K_diff_list[0])
+print("tau_diff: ", tau_diff_list[1]/K_diff_list[0])
 #print("A_1: ", A_1_list[1]/A_1_list[0])
 #print("A_sqrt_n: ", A_sqrt_n_list[1]/A_sqrt_n_list[0])
 #print("A_n: ", A_n_list[1]/A_n_list[0])

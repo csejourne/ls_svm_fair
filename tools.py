@@ -351,27 +351,24 @@ def extract_W(X, mu_list, cardinals):
     mu = np.concatenate(mu, axis=0)
     assert mu.shape[0] == n
     W = X - mu
-    return W/np.sqrt(p)
+    return W
 
-def build_V(mu_list, cardinals, W, cov_list):
+def build_objects(mu_list, cardinals, cov_list):
     """
     Args:
         mu_list: (list of 1d array)
         cardinals: (list of int or 1d array) 
-        W: (2d array) of size p x n.
-        eps: (float) scales the covariances.
-
+        cov_list: list of covariances
     returns:
-        the V matrix
+        J, M, t, S (as in RMT ML book).
+
     """
 
-    V = []
     cardinals = np.array(cardinals)
     n = np.sum(cardinals)
     k = len(cardinals)
-    p = W.shape[0]
+    p = cov_list[0].shape[0]
     assert len(mu_list) == k
-    #P = np.eye(n) - 1/n * np.ones((n,n))
     
     ### Create the J matrix.
     J = np.zeros((n, k))
@@ -380,30 +377,65 @@ def build_V(mu_list, cardinals, W, cov_list):
     for i in range(k):
         tmp = list(np.arange(idxs[i], idxs[i+1]))
         J[:, i] = one_hot(tmp, n)
-    V.append(J/np.sqrt(p))
 
-    ### Build the $v_a$ and append them for V.
+    ### Build the $M$
+    mu_circ = sum([cardinals[i]/n * mu_list[i] for i in range(k)])
+    M = [(mu_list[i] - mu_circ).reshape((-1, 1)) for i in range(k)]
+    M = np.concatenate(M, axis=1)
+
+    ### Build $t$
+    cov_circ = sum([cardinals[i]/n * cov_list[i] for i in range(k)])
+    t = [cov_list[i] - cov_circ for i in range(k)]
+    t = [1/np.sqrt(p) * np.trace(t[i]) for i in range(k)]
+    t = np.array(t)
+
+    ### Build $S$
+    S = np.zeros((k,k))
     for i in range(k):
-        V.append(W.T @ mu_list[i].reshape((-1, 1)))
+        for j in range(k):
+            S[i,j] = 1/p * np.trace(cov_list[i] @ cov_list[j])
+    return J, M, t, S
 
-    ### Build the $\tilde{v}$.
+def build_V(cardinals, mu_list, cov_list, J, W, M, t): 
+    """
+    Args:
+        cardinals: (list of int or 1d array) 
+        mu_list: (list of 1d array)
+        J: (2d array) of size (n,k)
+        W: (2d array) of size (p, n)
+        M: (2d array) of size (p, k)
+        t: (1d array) of size (k,)
+
+    returns:
+        the V matrix
+    """
+    p, n = W.shape
+    k = len(cardinals)
+    assert len(cardinals) == len(mu_list)
+    V = []
+
+    # J matrix
+    V.append(J/np.sqrt(p))
+    # $W.T @ M$
+    V.append(W.T @ M/np.sqrt(p))
+    # $\tilde{v}$.
+    idxs = np.cumsum(np.array(cardinals))
+    idxs = np.insert(idxs, 0, 0)
     tilde_v = np.zeros((n, 1))
     for i in range(k):
         tmp = W[:, idxs[i]:idxs[i+1]].T @ mu_list[i].reshape((-1, 1))
         tilde_v[idxs[i]:idxs[i+1], :] = np.copy(tmp.reshape((-1, 1)))
     V.append(tilde_v)
 
-    ### Build the $\psi_circ$ or just $\psi$
-    tmp = [np.tile(np.trace(cov_list[i]), [cardinals[i], 1]) for i in range(k)]
-    tmp = np.concatenate(tmp)
+    ### Build $\psi$
+    expec = [np.tile(np.trace(cov_list[i]), [cardinals[i], 1]) for i in range(k)]
+    expec = np.concatenate(expec)
     psi = np.diag(W.T @ W).reshape((-1, 1))
-    psi = psi - 1/p * tmp
+    psi = 1/p *(psi - expec)
     V.append(psi)
     V.append(np.sqrt(p) * psi**2)
 
     ### Create psi_tilde
-    cov_circ = sum([cardinals[i] * cov_list[i] for i in range(k)])/n
-    t = np.array([np.trace(cov_list[i] - cov_circ)/np.sqrt(p) for i in range(k)])
     diag = sum([t[i] * J[:, i] for i in range(k)])
     diag = np.diag(np.squeeze(diag))
     psi_tilde = diag @ psi
