@@ -401,11 +401,11 @@ def build_V(cardinals, mu_list, cov_list, J, W, M, t):
     Args:
         cardinals: (list of int or 1d array) 
         mu_list: (list of 1d array)
+        cov_list: (list of 2d array) (p,p)
         J: (2d array) of size (n,k)
         W: (2d array) of size (p, n)
         M: (2d array) of size (p, k)
         t: (1d array) of size (k,)
-
     returns:
         the V matrix
     """
@@ -425,7 +425,7 @@ def build_V(cardinals, mu_list, cov_list, J, W, M, t):
     for i in range(k):
         tmp = W[:, idxs[i]:idxs[i+1]].T @ mu_list[i].reshape((-1, 1))
         tilde_v[idxs[i]:idxs[i+1], :] = np.copy(tmp.reshape((-1, 1)))
-    V.append(tilde_v)
+    V.append(1/np.sqrt(p)*tilde_v)
 
     ### Build $\psi$
     expec = [np.tile(np.trace(cov_list[i]), [cardinals[i], 1]) for i in range(k)]
@@ -461,7 +461,7 @@ def build_A_n(tau, k, p, V):
 
     return V @ A_n @ V.T
 
-def build_A_sqrt_n(cardinals, cov_list, V):
+def build_A_sqrt_n(t, p, V):
     """
     Args:
         p: (int) 
@@ -469,15 +469,8 @@ def build_A_sqrt_n(cardinals, cov_list, V):
     returns:
         the A_sqrt_n matrix
     """
-
-    n = sum(cardinals)
-    p = cov_list[0].shape[0]
-    k = len(cardinals)
-    ### Create `t` vector.
-    cov_circ = sum([cardinals[i] * cov_list[i] for i in range(k)])/n
-    t = np.array([np.trace(cov_list[i] - cov_circ)/np.sqrt(p) for i in range(k)])
-
     t = t.reshape((-1, 1))
+    k = t.shape[0]
     t = t.T + t
     A_sqrt_n = np.zeros((2*k + 4, 2*k + 4))
     A_sqrt_n[:k, :k] = t
@@ -486,7 +479,7 @@ def build_A_sqrt_n(cardinals, cov_list, V):
 
     return -np.sqrt(p)/2 * V @ A_sqrt_n @ V.T
 
-def build_A_1(cardinals, mu_list, cov_list, tau, V):
+def build_A_1(mu_list, t, S, tau, V):
     """
     Args:
         mu_list: (list of 1d array)
@@ -498,22 +491,16 @@ def build_A_1(cardinals, mu_list, cov_list, tau, V):
     """
 
     k = len(mu_list)
-    n = sum(cardinals)
-    p = mu_list[0].shape[0]
     A_1 = np.zeros((2*k + 4, 2*k + 4))
 
-    ### Create `t` vector.
-    cov_circ = sum([cardinals[i] * cov_list[i] for i in range(k)])/n
-    t = np.array([np.trace(cov_list[i] - cov_circ)/np.sqrt(p) for i in range(k)])
-
     ### Build $A_{1, 11}$
+    t = np.squeeze(t)
     A_1_11 = np.zeros((k, k))
     for i in range(k):
         for j in range(k):
             A_1_11[i, j] = -1/2 * np.linalg.norm(mu_list[i] - mu_list[j])**2
             A_1_11[i, j] += - f_pp(tau)/(4*f_p(tau)) * (t[i] + t[j])**2
-            A_1_11[i, j] += - f_pp(tau)/(p*f_p(tau)) * np.trace(cov_list[i] @ cov_list[j])
-            A_1_11[j, i] = A_1_11[i, j]
+            A_1_11[i, j] += - f_pp(tau)/f_p(tau) * S[i,j]
     A_1[:k, :k] = A_1_11
 
     ### The rest
@@ -523,8 +510,8 @@ def build_A_1(cardinals, mu_list, cov_list, tau, V):
     A_1[:k, -4] = -1
     A_1[-4, :k] = -1
 
-    A_1[:k, -3] = -f_pp(tau)/(2*f_p(tau)) * np.squeeze(t)
-    A_1[-3, :k] = -f_pp(tau)/(2*f_p(tau)) * np.squeeze(t)
+    A_1[:k, -3] = -f_pp(tau)/(2*f_p(tau)) * t
+    A_1[-3, :k] = -f_pp(tau)/(2*f_p(tau)) * t
 
     A_1[:k, -2] = -f_pp(tau)/(4*f_p(tau))
     A_1[-2, :k] = -f_pp(tau)/(4*f_p(tau))
