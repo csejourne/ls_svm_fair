@@ -305,7 +305,6 @@ def get_metrics(preds, y, ind_dict):
     prec = metrics.precision_score(y, preds) 
     recall = metrics.recall_score(y, preds) 
     conf_mat = metrics.confusion_matrix(y, preds)
-    #conf_mat = metrics.confusion_matrix(y, preds, normalize='all')
 
     values["gen"]["prec"] = np.copy(prec)
     values["gen"]["recall"] = np.copy(recall)
@@ -404,6 +403,7 @@ def build_V(cardinals, mu_list, cov_list, J, W, M, t):
     returns:
         the V matrix
     """
+    print("building V")
     p, n = W.shape
     k = len(cardinals)
     assert len(cardinals) == len(mu_list)
@@ -527,6 +527,18 @@ def build_A_1(mu_list, t, S, tau, V):
 """
 Below are functions for formulae, for debug.
 """
+def build_Omega_inv_approx(tau, gamma, A_1, A_sqrt_n, W):
+    beta = f(0) - f(tau) + tau*f_p(tau)
+    p, n = W.shape
+    P = np.eye(n) - 1/n * np.ones((n,n))
+    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * P)
+    Q = 2*f_p(tau)/n**2 * (A_1 + 1/p * W.T @ W + \
+                2*f_p(tau)/n * A_sqrt_n @ L @ A_sqrt_n)
+    approx = L / n 
+    approx = approx + 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L
+    approx = approx + L @ (Q - beta/n**2 * np.eye(n)) @ L
+    return approx
+
 def build_C_1(A_n, tau, gamma):
     n = A_n.shape[0]
     P = np.eye(n) - 1/n * np.ones((n,n))
@@ -544,16 +556,18 @@ def build_C_sqrt_n(A_sqrt_n, A_n, tau, gamma):
     return C_sqrt_n
 
 def build_C_n(A_1, A_sqrt_n, A_n, tau, gamma, W):
-    _, n = W.shape
+    p, n = W.shape
     beta = f(0) - f(0) + tau * f_p(tau)
     P = np.eye(n) - 1/n * np.ones((n,n))
     L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * P)
-    Q = 2*f_p(tau)/n**2 * (A_1 + P @ W.T @ W @ P + \
+    Q = 2*f_p(tau)/n**2 * (A_1 + 1/p * W.T @ W + \
                 2*f_p(tau)/n * A_sqrt_n @ L @ A_sqrt_n)
 
-    C_n = (-2*f_p(tau) / n) * (A_sqrt_n @ L + 2*f_p(tau)/n * A_n @ L @ A_sqrt_n @ L) @ L
-    C_n = C_n - (2*f_p(tau)/n)**2 * A_sqrt_n @ L @ A_sqrt_n @ L
-    C_n = C_n - 2*f_p(tau) * A_n @ L @ (Q - beta/n**2 * np.eye(n)) @ L
+    C_n = 0
+    C_n1 = ( - 2*f_p(tau) * (1/p * W.T @ W + A_1) + beta*np.eye(n) ) @ L/n
+    C_n2 = - (2*f_p(tau)/n)**2 * A_sqrt_n @ L @ A_sqrt_n @ L
+    C_n3 = - 2*f_p(tau) * A_n @ L @ (Q - beta/n**2 * np.eye(n)) @ L
+    C_n = C_n1 + C_n2 + C_n3
     return C_n
 
 def build_D_n(C_1, A_n, tau):
@@ -563,10 +577,10 @@ def build_D_sqrt_n(C_sqrt_n, C_1, A_sqrt_n, A_n, tau):
     return -2*f_p(tau) * (C_1 @ A_sqrt_n + C_sqrt_n @ A_n)
 
 def build_D_1(C_n, C_sqrt_n, C_1, A_1, A_sqrt_n, A_n, W, tau):
-    _, n = W.shape
+    p, n = W.shape
     P = np.eye(n) - 1/n * np.ones((n, n))
     beta = f(0) - f(tau) + tau*f_p(tau)
     D_1 = -2*f_p(tau) * C_n @ A_n - 2*f_p(tau) * C_sqrt_n @ A_sqrt_n
-    D_1 = D_1 + C_1 @ (-2 * f_p(tau) * (P @ W.T @ W @ P + A_1) + beta*np.eye(n))
+    D_1 = D_1 + C_1 @ (-2 * f_p(tau) * (1/p * W.T @ W + A_1) + beta*np.eye(n))
 
     return D_1
