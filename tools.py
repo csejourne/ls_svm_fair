@@ -577,9 +577,8 @@ def build_D_sqrt_n(C_sqrt_n, C_1, A_sqrt_n, A_n, tau):
 
 def build_D_1(C_n, C_sqrt_n, C_1, A_1, A_sqrt_n, A_n, W, tau):
     p, n = W.shape
-    P = np.eye(n) - 1/n * np.ones((n, n))
     beta = f(0) - f(tau) + tau*f_p(tau)
-    D_1 = -2*f_p(tau) * C_n @ A_n - 2*f_p(tau) * C_sqrt_n @ A_sqrt_n
+    D_1 = -2*f_p(tau) * (C_n @ A_n + C_sqrt_n @ A_sqrt_n)
     D_1 = D_1 + C_1 @ (-2 * f_p(tau) * (1/p * W.T @ W + A_1) + beta*np.eye(n))
 
     return D_1

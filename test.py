@@ -87,10 +87,11 @@ for i in range(len(p_list)):
     C_sqrt_n = build_C_sqrt_n(A_sqrt_n, A_n, tau, gamma)
     C_1 = build_C_1(A_n, tau, gamma)
     C = C_n + C_sqrt_n + C_1
-    #
-    #D_1 = build_D_1(C_n, C_sqrt_n, C_1, A_1, A_sqrt_n, A_n, W.T, tau)
-    #D_sqrt_n = build_D_sqrt_n(C_sqrt_n, C_1, A_sqrt_n, A_n, tau)
-    #D_n = build_D_n(C_1, A_n, tau)
+    
+    D_1 = build_D_1(C_n, C_sqrt_n, C_1, A_1, A_sqrt_n, A_n, W.T, tau)
+    D_sqrt_n = build_D_sqrt_n(C_sqrt_n, C_1, A_sqrt_n, A_n, tau)
+    D_n = build_D_n(C_1, A_n, tau)
+    D = D_n + D_sqrt_n + D_1
 
     # $B_{22}$ in the companion paper.
     Om = K + n/gamma * np.eye(n)
@@ -101,8 +102,8 @@ for i in range(len(p_list)):
     #K_app = - 2*f_p(tau) * (1/p * W @ W.T + A) + beta*np.eye(n)
 
     ### For control purposes.
-    print("For tmp")
-    tmp_list.append(np.linalg.norm(K @ Om - C, ord=2))
+    #print("For tmp")
+    #tmp_list.append(np.linalg.norm(K @ Om @ K - D, ord=2))
     #tmp_list.append(np.linalg.norm(Om_inv - Om_inv_approx , ord=2))
     #print("For K")
     #K_diff_list.append(np.linalg.norm(K - K_app, ord=2))
@@ -111,9 +112,9 @@ for i in range(len(p_list)):
     #A_sqrt_n_list.append(np.linalg.norm(A_sqrt_n, ord=2))
     #A_n_list.append(np.linalg.norm(A_n, ord=2))
     #print("For C")
-    C_1_list.append(np.linalg.norm(C_1, ord=2))
-    C_sqrt_n_list.append(np.linalg.norm(C_sqrt_n, ord=2))
-    C_n_list.append(np.linalg.norm(C_n, ord=2))
+    #C_1_list.append(np.linalg.norm(C_1, ord=2))
+    #C_sqrt_n_list.append(np.linalg.norm(C_sqrt_n, ord=2))
+    #C_n_list.append(np.linalg.norm(C_n, ord=2))
     #print("For D")
     #D_1_list.append(np.linalg.norm(D_1, ord=2))
     #D_sqrt_n_list.append(np.linalg.norm(D_sqrt_n, ord=2))
@@ -126,9 +127,9 @@ print("\tapprox formula: ", tmp_list[1]/tmp_list[0])
 #print("A_1: ", A_1_list[1]/A_1_list[0])
 #print("A_sqrt_n: ", A_sqrt_n_list[1]/A_sqrt_n_list[0])
 #print("A_n: ", A_n_list[1]/A_n_list[0])
-print("\tC_1: ", C_1_list[1]/C_1_list[0])
-print("\tC_sqrt_n: ", C_sqrt_n_list[1]/C_sqrt_n_list[0])
-print("\tC_n: ", C_n_list[1]/C_n_list[0])
+#print("\tC_1: ", C_1_list[1]/C_1_list[0])
+#print("\tC_sqrt_n: ", C_sqrt_n_list[1]/C_sqrt_n_list[0])
+#print("\tC_n: ", C_n_list[1]/C_n_list[0])
 #print("Q: ", Q_list[1]/Q_list[0])
 #print("D_1: ", D_1_list[1]/D_1_list[0])
 #print("D_sqrt_n: ", D_sqrt_n_list[1]/D_sqrt_n_list[0])
