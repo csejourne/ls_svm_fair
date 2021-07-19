@@ -26,8 +26,10 @@ conf_default = Config(Path('conf_default.json'))
 ### Hyperparameters
 gamma = 1
 mean_scal = 5
-cov_scal = 1e-1
+cov_scal = 1
 print(f"cov_scal is {cov_scal}")
+#list_cardinals = [[600, 300, 300, 500]]
+#p_list = [512]
 list_cardinals = [[300, 150, 150, 250], [600, 300, 300, 500]]
 p_list = [512, 1024]
 
@@ -85,20 +87,22 @@ for i in range(len(p_list)):
     C_sqrt_n = build_C_sqrt_n(A_sqrt_n, A_n, tau, gamma)
     C_1 = build_C_1(A_n, tau, gamma)
     C = C_n + C_sqrt_n + C_1
-    
-    D_1 = build_D_1(C_n, C_sqrt_n, C_1, A_1, A_sqrt_n, A_n, W.T, tau)
-    D_sqrt_n = build_D_sqrt_n(C_sqrt_n, C_1, A_sqrt_n, A_n, tau)
-    D_n = build_D_n(C_1, A_n, tau)
+    #
+    #D_1 = build_D_1(C_n, C_sqrt_n, C_1, A_1, A_sqrt_n, A_n, W.T, tau)
+    #D_sqrt_n = build_D_sqrt_n(C_sqrt_n, C_1, A_sqrt_n, A_n, tau)
+    #D_n = build_D_n(C_1, A_n, tau)
 
     # $B_{22}$ in the companion paper.
     Om = K + n/gamma * np.eye(n)
-    Om_inv = np.linalg.inv(Om)
+    P = np.eye(n) - 1/n * np.ones((n,n))
+    #L = gamma / (1 +gamma * f(tau)) * (np.eye(n) + f(tau)*gamma * P)
+    Om = np.linalg.inv(Om)
     #Om_inv_approx = build_Omega_inv_approx(tau, gamma, A_1, A_sqrt_n, W.T)
     #K_app = - 2*f_p(tau) * (1/p * W @ W.T + A) + beta*np.eye(n)
 
     ### For control purposes.
     print("For tmp")
-    #tmp_list.append(np.linalg.norm(np.eye(n) - Om_inv @ L/n, ord=2))
+    tmp_list.append(np.linalg.norm(K @ Om - C, ord=2))
     #tmp_list.append(np.linalg.norm(Om_inv - Om_inv_approx , ord=2))
     #print("For K")
     #K_diff_list.append(np.linalg.norm(K - K_app, ord=2))
@@ -107,9 +111,9 @@ for i in range(len(p_list)):
     #A_sqrt_n_list.append(np.linalg.norm(A_sqrt_n, ord=2))
     #A_n_list.append(np.linalg.norm(A_n, ord=2))
     #print("For C")
-    #C_1_list.append(np.linalg.norm(C_1, ord=2))
-    #C_sqrt_n_list.append(np.linalg.norm(C_sqrt_n, ord=2))
-    #C_n_list.append(np.linalg.norm(C_n, ord=2))
+    C_1_list.append(np.linalg.norm(C_1, ord=2))
+    C_sqrt_n_list.append(np.linalg.norm(C_sqrt_n, ord=2))
+    C_n_list.append(np.linalg.norm(C_n, ord=2))
     #print("For D")
     #D_1_list.append(np.linalg.norm(D_1, ord=2))
     #D_sqrt_n_list.append(np.linalg.norm(D_sqrt_n, ord=2))
@@ -117,17 +121,14 @@ for i in range(len(p_list)):
 
 print("")
 print("Results of operator norms")
-print("\ttmp: ", tmp_list[1]/tmp_list[0])
+print("\tapprox formula: ", tmp_list[1]/tmp_list[0])
 #print("\tK: ", K_diff_list[1]/K_diff_list[0])
 #print("A_1: ", A_1_list[1]/A_1_list[0])
 #print("A_sqrt_n: ", A_sqrt_n_list[1]/A_sqrt_n_list[0])
 #print("A_n: ", A_n_list[1]/A_n_list[0])
-#print("C_1: ", C_1_list[1]/C_1_list[0])
-#print("C_sqrt_n: ", C_sqrt_n_list[1]/C_sqrt_n_list[0])
-#print("C_n: ", C_n_list[1]/C_n_list[0])
-#print("C_n1: ", C_n1_list[1]/C_n1_list[0])
-#print("C_n2: ", C_n2_list[1]/C_n2_list[0])
-#print("C_n3: ", C_n3_list[1]/C_n3_list[0])
+print("\tC_1: ", C_1_list[1]/C_1_list[0])
+print("\tC_sqrt_n: ", C_sqrt_n_list[1]/C_sqrt_n_list[0])
+print("\tC_n: ", C_n_list[1]/C_n_list[0])
 #print("Q: ", Q_list[1]/Q_list[0])
 #print("D_1: ", D_1_list[1]/D_1_list[0])
 #print("D_sqrt_n: ", D_sqrt_n_list[1]/D_sqrt_n_list[0])

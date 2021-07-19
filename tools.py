@@ -403,7 +403,6 @@ def build_V(cardinals, mu_list, cov_list, J, W, M, t):
     returns:
         the V matrix
     """
-    print("building V")
     p, n = W.shape
     k = len(cardinals)
     assert len(cardinals) == len(mu_list)
@@ -531,7 +530,7 @@ def build_Omega_inv_approx(tau, gamma, A_1, A_sqrt_n, W):
     beta = f(0) - f(tau) + tau*f_p(tau)
     p, n = W.shape
     P = np.eye(n) - 1/n * np.ones((n,n))
-    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * P)
+    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * f(tau) * P)
     Q = 2*f_p(tau)/n**2 * (A_1 + 1/p * W.T @ W + \
                 2*f_p(tau)/n * A_sqrt_n @ L @ A_sqrt_n)
     approx = L / n 
@@ -542,24 +541,24 @@ def build_Omega_inv_approx(tau, gamma, A_1, A_sqrt_n, W):
 def build_C_1(A_n, tau, gamma):
     n = A_n.shape[0]
     P = np.eye(n) - 1/n * np.ones((n,n))
-    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * P)
+    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * f(tau) * P)
     C_1 = - 2*f_p(tau)/n * A_n @ L
     return C_1
 
 def build_C_sqrt_n(A_sqrt_n, A_n, tau, gamma):
     n = A_n.shape[0]
     P = np.eye(n) - 1/n * np.ones((n,n))
-    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * P)
+    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * f(tau) * P)
     alpha = -2*f_p(tau)/n
-    C_sqrt_n = -alpha*( A_sqrt_n @ L + alpha * A_n @ L @ A_sqrt_n @ L)
+    C_sqrt_n = alpha*( A_sqrt_n @ L - alpha * A_n @ L @ A_sqrt_n @ L)
 
     return C_sqrt_n
 
 def build_C_n(A_1, A_sqrt_n, A_n, tau, gamma, W):
     p, n = W.shape
-    beta = f(0) - f(0) + tau * f_p(tau)
+    beta = f(0) - f(tau) + tau * f_p(tau)
     P = np.eye(n) - 1/n * np.ones((n,n))
-    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * P)
+    L = gamma/(1 + gamma*f(tau)) * (np.eye(n) + gamma * f(tau) * P)
     Q = 2*f_p(tau)/n**2 * (A_1 + 1/p * W.T @ W + \
                 2*f_p(tau)/n * A_sqrt_n @ L @ A_sqrt_n)
 
