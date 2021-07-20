@@ -44,6 +44,8 @@ D_1_list = []
 D_sqrt_n_list = []
 D_n_list = []
 K_diff_list = []
+E_list = []
+Om_list = []
 tmp_list = []
 
 for i in range(len(p_list)):
@@ -96,15 +98,29 @@ for i in range(len(p_list)):
     # $B_{22}$ in the companion paper.
     Om = K + n/gamma * np.eye(n)
     P = np.eye(n) - 1/n * np.ones((n,n))
-    #L = gamma / (1 +gamma * f(tau)) * (np.eye(n) + f(tau)*gamma * P)
+    L = gamma / (1 +gamma * f(tau)) * (np.eye(n) + f(tau)*gamma * P)
+    Q = 2*f_p(tau)/n**2 * (A_1 + 1/p * W @ W.T + \
+                2*f_p(tau)/n * A_sqrt_n @ L @ A_sqrt_n)
     Om = np.linalg.inv(Om)
-    #Om_inv_approx = build_Omega_inv_approx(tau, gamma, A_1, A_sqrt_n, W.T)
+    E = n/gamma * (np.eye(n) - n/gamma * Om)
+    E_app = f(tau)/(1 + gamma*f(tau)) * np.ones((n,n)) \
+            - 1/gamma**2 * (2*f_p(tau) * L@A_sqrt_n@L \
+            + L @ (n**2 * Q - beta * np.eye(n)) @ L)
+    
+    tmp0 = np.sum(ind_dict[('pos', 0)])
+    tmp1 = np.sum(ind_dict[('pos', 1)])
+    Delta_pos = ind_dict[('pos', 0)]/tmp0 - ind_dict[('pos', 1)]/tmp1
+    tmp0 = np.sum(ind_dict[('neg', 0)])
+    tmp1 = np.sum(ind_dict[('neg', 1)])
+    Delta_neg = ind_dict[('neg', 0)]/tmp0 - ind_dict[('neg', 1)]/tmp1
+    Delta = np.concatenate([Delta_pos, Delta_neg], axis=1)
+
     #K_app = - 2*f_p(tau) * (1/p * W @ W.T + A) + beta*np.eye(n)
 
     ### For control purposes.
     #print("For tmp")
-    #tmp_list.append(np.linalg.norm(K @ Om @ K - D, ord=2))
-    #tmp_list.append(np.linalg.norm(Om_inv - Om_inv_approx , ord=2))
+    #E_list.append(np.linalg.norm(E, ord=2))
+    tmp_list.append(np.linalg.norm(E - E_app, ord=2))
     #print("For K")
     #K_diff_list.append(np.linalg.norm(K - K_app, ord=2))
     #print("For A")
@@ -123,6 +139,7 @@ for i in range(len(p_list)):
 print("")
 print("Results of operator norms")
 print("\tapprox formula: ", tmp_list[1]/tmp_list[0])
+#print("\tE order: ", E_list[1]/E_list[0])
 #print("\tK: ", K_diff_list[1]/K_diff_list[0])
 #print("A_1: ", A_1_list[1]/A_1_list[0])
 #print("A_sqrt_n: ", A_sqrt_n_list[1]/A_sqrt_n_list[0])
