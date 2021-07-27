@@ -582,3 +582,32 @@ def build_D_1(C_n, C_sqrt_n, C_1, A_1, A_sqrt_n, A_n, W, tau):
     D_1 = D_1 + C_1 @ (-2 * f_p(tau) * (1/p * W.T @ W + A_1) + beta*np.eye(n))
 
     return D_1
+
+def build_Delta(ind_dict):
+    tmp0 = np.sum(ind_dict[('pos', 0)])
+    tmp1 = np.sum(ind_dict[('pos', 1)])
+    Delta_pos = ind_dict[('pos', 0)]/tmp0 - ind_dict[('pos', 1)]/tmp1
+    tmp0 = np.sum(ind_dict[('neg', 0)])
+    tmp1 = np.sum(ind_dict[('neg', 1)])
+    Delta_neg = ind_dict[('neg', 0)]/tmp0 - ind_dict[('neg', 1)]/tmp1
+    Delta = np.concatenate([Delta_pos, Delta_neg], axis=1)
+    return Delta
+
+def build_F_n(Delta, E_app):
+    Delta_pos = Delta[:, 0].reshape((-1, 1))
+    Delta_neg = Delta[:, 1].reshape((-1, 1))
+    alpha_pos = float(Delta_pos.T @ E_app @ Delta_pos)
+    alpha_neg = float(Delta_neg.T @ E_app @ Delta_neg)
+    alpha_pos_neg = float(- Delta_pos.T @ E_app @ Delta_neg)
+    #G = n**2 * Q - beta*np.eye(n)
+    #a11 = float(-Delta_neg.T @ G @ Delta_neg)
+    #a12 = float(Delta_pos.T @ G @ Delta_neg)
+    #a21 = float(Delta_pos.T @ G @ Delta_neg)
+    #a22 = float(-Delta_neg.T @ G @ Delta_neg)
+    a11 = float(Delta_neg.T @ E_app @ Delta_neg)
+    a12 = float(-Delta_pos.T @ E_app @ Delta_neg)
+    a21 = float(-Delta_pos.T @ E_app @ Delta_neg)
+    a22 = float(Delta_neg.T @ E_app @ Delta_neg)
+    F_n = np.array([[a11, a12], [a21, a22]])
+    F_n = 1/(alpha_pos * alpha_neg - alpha_pos_neg**2) * F_n
+    return F_n

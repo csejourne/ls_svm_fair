@@ -10,7 +10,8 @@ from pathlib import Path
 from scipy.spatial.distance import pdist, squareform
 from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, \
                 build_C_1, build_C_sqrt_n, build_C_n, build_D_1, build_D_sqrt_n, \
-                build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix 
+                build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
+                build_Delta, build_F_n
 
 from tools import f, f_p, f_pp, build_objects
 
@@ -50,6 +51,7 @@ Om_list = []
 tmp_list = []
 tmp2_list = []
 tmp3_list = []
+tmp4_list = []
 
 for i in range(len(p_list)):
     # Class distribution
@@ -61,8 +63,8 @@ for i in range(len(p_list)):
     sigma=p
     mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
                mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
-    cov_list = [cov_scal*np.eye(p), cov_scal*np.eye(p),
-                cov_scal*np.eye(p), cov_scal*np.eye(p)]
+    cov_list = [cov_scal*np.eye(p), 2*cov_scal*np.eye(p),
+                cov_scal*np.eye(p), 2*cov_scal*np.eye(p)]
     
     # Generate data.
     X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
@@ -107,51 +109,36 @@ for i in range(len(p_list)):
 
     # $B_{22}$ in the companion paper.
     Om = K + n/gamma * np.eye(n)
+    Om = np.linalg.inv(Om)
     P = np.eye(n) - 1/n * np.ones((n,n))
     L = gamma / (1 +gamma * f(tau)) * (np.eye(n) + f(tau)*gamma * P)
     Q = 2*f_p(tau)/n**2 * (A_1 + 1/p * W @ W.T + \
                 2*f_p(tau)/n * A_sqrt_n @ L @ A_sqrt_n)
-    Om = np.linalg.inv(Om)
     rest = np.linalg.inv(B_11 - B_12 @ Om @ B_21)
     E = n/gamma * (np.eye(n) - n/gamma * Om)
     E_app = f(tau)/(1 + gamma*f(tau)) * np.ones((n,n)) \
             - 1/gamma**2 * (2*f_p(tau) * L@A_sqrt_n@L \
             + L @ (n**2 * Q - beta * np.eye(n)) @ L)
-    E_app1 = f(tau)/(1 + gamma*f(tau)) * np.ones((n,n)) 
-    E_app2 = - 1/gamma**2 * (2*f_p(tau) * L@A_sqrt_n@L )
-    E_app3 = -1/gamma**2 * L @ (n**2 * Q - beta * np.eye(n)) @ L
-    tmp0 = np.sum(ind_dict[('pos', 0)])
-    tmp1 = np.sum(ind_dict[('pos', 1)])
-    Delta_pos = ind_dict[('pos', 0)]/tmp0 - ind_dict[('pos', 1)]/tmp1
-    tmp0 = np.sum(ind_dict[('neg', 0)])
-    tmp1 = np.sum(ind_dict[('neg', 1)])
-    Delta_neg = ind_dict[('neg', 0)]/tmp0 - ind_dict[('neg', 1)]/tmp1
-    Delta = np.concatenate([Delta_pos, Delta_neg], axis=1)
-    alpha_pos = float(Delta_pos.T @ E @ Delta_pos)
-    alpha_neg = float(Delta_neg.T @ E @ Delta_neg)
-    alpha_pos_neg = float(- Delta_pos.T @ E @ Delta_neg)
-    alpha_pos_app = float(- Delta_pos.T @ (n**2 * Q - beta*np.eye(n)) @ Delta_pos)
-    alpha_neg_app = float(- Delta_neg.T @ (n**2 * Q - beta*np.eye(n)) @ Delta_neg)
-    alpha_pos_neg_app = float(- Delta_pos.T @ (n**2 * Q - beta*np.eye(n)) @ Delta_neg)
-    #G = n**2 * Q - beta*np.eye(n)
-    #a11 = float(-Delta_neg.T @ G @ Delta_neg)
-    #a12 = float(Delta_pos.T @ G @ Delta_neg)
-    #a21 = float(Delta_pos.T @ G @ Delta_neg)
-    #a22 = float(-Delta_neg.T @ G @ Delta_neg)
-    #rest_approx = np.array([[a11, a12], [a21, a22]])
-    #rest_approx = 1/(alpha_pos * alpha_neg - alpha_pos_neg**2) * rest_approx
+    Delta = build_Delta(ind_dict)
+    Delta_pos = Delta[:, 0].reshape((-1, 1))
+    Delta_neg = Delta[:, 1].reshape((-1, 1))
+    F_n = build_F_n(Delta, E_app)
+    ### when using F_n as an approx
+    bla = Om @ B_21 @ rest @ B_12 @ Om
+    bla2 = (C_sqrt_n + C_n).T @ Delta @ F_n @ Delta.T @ (C_sqrt_n + C_n)
     #K_app = - 2*f_p(tau) * (1/p * W @ W.T + A) + beta*np.eye(n)
-    Delta_rot = np.concatenate([Delta_neg, -Delta_pos], axis=1)
-    fact = 1/(alpha_pos * alpha_neg - alpha_pos_neg**2)
-    inv_app = fact * Delta_rot.T @ E @ Delta_rot
-
+    #Delta_rot = np.concatenate([Delta_neg, -Delta_pos], axis=1)
+    #fact = 1/(alpha_pos * alpha_neg - alpha_pos_neg**2)
+    #inv_app = fact * Delta_rot.T @ E @ Delta_rot
 
     ### For control purposes.
     #print("For tmp")
     #E_list.append(np.linalg.norm(E, ord=2))
-    tmp_list.append(alpha_neg)
-    tmp2_list.append(alpha_neg_app)
-    tmp3_list.append(alpha_neg - alpha_neg_app)
+    #print(f"alpha_pos {alpha_pos}, alpha_neg {alpha_neg}, alpha_pos_neg {alpha_pos_neg}")
+    #print(f"alpha_pos_neg / alpha_pos: {alpha_pos_neg / alpha_pos}")
+    tmp_list.append(np.linalg.norm(bla, ord=2))
+    tmp2_list.append(np.linalg.norm(bla2, ord=2))
+    tmp3_list.append(np.linalg.norm(bla - bla2, ord=2))
 
     #print("For K")
     #K_diff_list.append(np.linalg.norm(K - K_app, ord=2))
@@ -171,7 +158,7 @@ for i in range(len(p_list)):
 print("")
 print("Results of operator norms")
 print("\t normal : ", tmp_list[1]/tmp_list[0])
-print("\t approx : ", tmp2_list[1]/tmp2_list[0])
+print("\t appro : ", tmp2_list[1]/tmp2_list[0])
 print("\t diff : ", tmp3_list[1]/tmp3_list[0])
 #print("\tE order: ", E_list[1]/E_list[0])
 #print("\tK: ", K_diff_list[1]/K_diff_list[0])
