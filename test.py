@@ -20,6 +20,7 @@ np.set_printoptions(threshold = 100)
 
 ### Set the seed for reproducibility
 #np.random.seed(12)
+#print("numpy state is: ", rng.get_state())
 
 ### Get default config for experiments.
 conf_default = Config(Path('conf_default.json'))
@@ -28,9 +29,9 @@ conf_default = Config(Path('conf_default.json'))
 mode = "strict"
 gamma = 1
 mean_scal = 5
-cov_scal = 1
+cov_scal = 2
 print(f"cov_scal is {cov_scal}")
-#list_cardinals = [[600, 300, 300, 500]]
+#list_cardinals = [[300, 150, 150, 250]]
 #p_list = [512]
 list_cardinals = [[300, 150, 150, 250], [600, 300, 300, 500]]
 p_list = [512, 1024]
@@ -63,8 +64,8 @@ for i in range(len(p_list)):
     sigma=p
     mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
                mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
-    cov_list = [cov_scal*np.eye(p), 2*cov_scal*np.eye(p),
-                cov_scal*np.eye(p), 2*cov_scal*np.eye(p)]
+    cov_list = [cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p),
+                cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
     
     # Generate data.
     X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
@@ -78,7 +79,10 @@ for i in range(len(p_list)):
     B_12 = matrix_fair[1:3, 3:]
     B_21 = matrix_fair[3:, 1:3]
     B_22 = matrix_fair[3:, 3:]
+    A_12 = matrix_fair[0, 1:].reshape((1, -1))
+    A_21 = matrix_fair[1:, 0].reshape((-1, 1))
     A_22 = matrix_fair[1:, 1:]
+    A_22_inv = np.linalg.inv(A_22)
     
     ### Generate approximators for control purposes.
     # Build V
@@ -123,22 +127,26 @@ for i in range(len(p_list)):
     Delta_pos = Delta[:, 0].reshape((-1, 1))
     Delta_neg = Delta[:, 1].reshape((-1, 1))
     F_n = build_F_n(Delta, E_app)
-    ### when using F_n as an approx
+    # when using F_n as an approx
     bla = Om @ B_21 @ rest @ B_12 @ Om
     bla2 = (C_sqrt_n + C_n).T @ Delta @ F_n @ Delta.T @ (C_sqrt_n + C_n)
-    #K_app = - 2*f_p(tau) * (1/p * W @ W.T + A) + beta*np.eye(n)
-    #Delta_rot = np.concatenate([Delta_neg, -Delta_pos], axis=1)
-    #fact = 1/(alpha_pos * alpha_neg - alpha_pos_neg**2)
-    #inv_app = fact * Delta_rot.T @ E @ Delta_rot
 
+    ### approx of A_22^{-1}
+    #A_22_inv_app = np.zeros((n+2, n+2))
+    #A_22_inv_app[:2, :2] = F_n
+    #A_22_inv_app[2:, :2] = - (C_sqrt_n + C_n).T @ Delta @ F_n
+    #A_22_inv_app[:2, 2:] = - F_n @ Delta.T @ (C_sqrt_n + C_n)
+    #A_22_inv_app[2:, 2:] = - (C_sqrt_n + C_n).T @ Delta @ F_n @ Delta.T @  (C_sqrt_n + C_n) + L/n \
+    #            + 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L + L @ (Q - beta/n**2 * np.eye(n)) @ L
+
+    #b_app = float(1/(A_12 @ A_22_inv_app @ A_21)) * A_12 @ A_22_inv_app @ y
+    #params = A_22_inv_app
     ### For control purposes.
-    #print("For tmp")
-    #E_list.append(np.linalg.norm(E, ord=2))
-    #print(f"alpha_pos {alpha_pos}, alpha_neg {alpha_neg}, alpha_pos_neg {alpha_pos_neg}")
-    #print(f"alpha_pos_neg / alpha_pos: {alpha_pos_neg / alpha_pos}")
-    tmp_list.append(np.linalg.norm(bla, ord=2))
-    tmp2_list.append(np.linalg.norm(bla2, ord=2))
-    tmp3_list.append(np.linalg.norm(bla - bla2, ord=2))
+    print("For tmp")
+    tmp_list.append(np.linalg.norm(C_sqrt_n.T @ Delta @ F_n @ Delta.T @ C_sqrt_n, ord=2))
+    tmp2_list.append(np.linalg.norm(C_n.T @ Delta @ F_n @ Delta.T @ C_sqrt_n, ord=2))
+    tmp3_list.append(np.linalg.norm(C_n.T @ Delta @ F_n @ Delta.T @ C_n, ord=2))
+    tmp4_list.append(np.linalg.norm(C_sqrt_n, ord=2))
 
     #print("For K")
     #K_diff_list.append(np.linalg.norm(K - K_app, ord=2))
@@ -157,9 +165,11 @@ for i in range(len(p_list)):
 
 print("")
 print("Results of operator norms")
-print("\t normal : ", tmp_list[1]/tmp_list[0])
-print("\t appro : ", tmp2_list[1]/tmp2_list[0])
-print("\t diff : ", tmp3_list[1]/tmp3_list[0])
+print("\t C_sqrt_n C_sqrt_n : ", tmp_list[1]/tmp_list[0])
+print("\t C_sqrt_n C_n : ", tmp2_list[1]/tmp2_list[0])
+print("\t C_n C_n : ", tmp3_list[1]/tmp3_list[0])
+print("\t C_sqrt_n : ", tmp4_list[1]/tmp4_list[0])
+#print("\t diff : ", tmp3_list[1]/tmp3_list[0])
 #print("\tE order: ", E_list[1]/E_list[0])
 #print("\tK: ", K_diff_list[1]/K_diff_list[0])
 #print("A_1: ", A_1_list[1]/A_1_list[0])
