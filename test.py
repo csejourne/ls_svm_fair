@@ -19,7 +19,7 @@ from tools import f, f_p, f_pp, build_objects
 np.set_printoptions(threshold = 100)
 
 ### Set the seed for reproducibility
-#np.random.seed(12)
+np.random.seed(12)
 #print("numpy state is: ", rng.get_state())
 
 ### Get default config for experiments.
@@ -29,7 +29,7 @@ conf_default = Config(Path('conf_default.json'))
 mode = "strict"
 gamma = 1
 mean_scal = 5
-cov_scal = 2
+cov_scal = 1
 print(f"cov_scal is {cov_scal}")
 #list_cardinals = [[300, 150, 150, 250]]
 #p_list = [512]
@@ -52,7 +52,6 @@ Om_list = []
 tmp_list = []
 tmp2_list = []
 tmp3_list = []
-tmp4_list = []
 
 for i in range(len(p_list)):
     # Class distribution
@@ -64,11 +63,14 @@ for i in range(len(p_list)):
     sigma=p
     mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
                mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
+    #cov_list = [cov_scal*np.eye(p),  cov_scal*np.eye(p),
+    #            cov_scal*np.eye(p),  cov_scal*np.eye(p)]
     cov_list = [cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p),
                 cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
     
     # Generate data.
     X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
+    Y = np.concatenate([np.zeros(2), y])
     assert (n, p) == X.shape
     W = extract_W(X, mu_list, cardinals)
     K = get_gaussian_kernel(X, sigma)
@@ -106,11 +108,6 @@ for i in range(len(p_list)):
     C_1 = build_C_1(A_n, tau, gamma)
     C = C_n + C_sqrt_n + C_1
     
-    D_1 = build_D_1(C_n, C_sqrt_n, C_1, A_1, A_sqrt_n, A_n, W.T, tau)
-    D_sqrt_n = build_D_sqrt_n(C_sqrt_n, C_1, A_sqrt_n, A_n, tau)
-    D_n = build_D_n(C_1, A_n, tau)
-    D = D_n + D_sqrt_n + D_1
-
     # $B_{22}$ in the companion paper.
     Om = K + n/gamma * np.eye(n)
     Om = np.linalg.inv(Om)
@@ -118,7 +115,6 @@ for i in range(len(p_list)):
     L = gamma / (1 +gamma * f(tau)) * (np.eye(n) + f(tau)*gamma * P)
     Q = 2*f_p(tau)/n**2 * (A_1 + 1/p * W @ W.T + \
                 2*f_p(tau)/n * A_sqrt_n @ L @ A_sqrt_n)
-    rest = np.linalg.inv(B_11 - B_12 @ Om @ B_21)
     E = n/gamma * (np.eye(n) - n/gamma * Om)
     E_app = f(tau)/(1 + gamma*f(tau)) * np.ones((n,n)) \
             - 1/gamma**2 * (2*f_p(tau) * L@A_sqrt_n@L \
@@ -127,26 +123,31 @@ for i in range(len(p_list)):
     Delta_pos = Delta[:, 0].reshape((-1, 1))
     Delta_neg = Delta[:, 1].reshape((-1, 1))
     F_n = build_F_n(Delta, E_app)
-    # when using F_n as an approx
-    bla = Om @ B_21 @ rest @ B_12 @ Om
-    bla2 = (C_sqrt_n + C_n).T @ Delta @ F_n @ Delta.T @ (C_sqrt_n + C_n)
-
+    rest = np.linalg.inv(B_11 - B_12 @ Om @ B_21)
+    term1 = Om @ B_21 @ rest @ B_12 @ Om
+    term1_app = (C_sqrt_n + C_n).T @ Delta @ F_n @ Delta.T @  (C_sqrt_n + C_n) 
+    term2 = Om
+    term2_app = L/n + 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L + L @ (Q - beta/n**2 * np.eye(n)) @ L
+    
     ### approx of A_22^{-1}
-    #A_22_inv_app = np.zeros((n+2, n+2))
-    #A_22_inv_app[:2, :2] = F_n
-    #A_22_inv_app[2:, :2] = - (C_sqrt_n + C_n).T @ Delta @ F_n
-    #A_22_inv_app[:2, 2:] = - F_n @ Delta.T @ (C_sqrt_n + C_n)
-    #A_22_inv_app[2:, 2:] = - (C_sqrt_n + C_n).T @ Delta @ F_n @ Delta.T @  (C_sqrt_n + C_n) + L/n \
+    A_22_inv_app = np.zeros((n+2, n+2))
+    A_22_inv_app[:2, :2] = F_n
+    A_22_inv_app[2:, :2] = - (C_sqrt_n + C_n).T @ Delta @ F_n
+    A_22_inv_app[:2, 2:] = - F_n @ Delta.T @ (C_sqrt_n + C_n)
+    #A_22_inv_app[2:, 2:] = (C_sqrt_n + C_n).T @ Delta @ F_n @ Delta.T @  (C_sqrt_n + C_n) + L/n \
     #            + 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L + L @ (Q - beta/n**2 * np.eye(n)) @ L
-
-    #b_app = float(1/(A_12 @ A_22_inv_app @ A_21)) * A_12 @ A_22_inv_app @ y
-    #params = A_22_inv_app
+    #A_22_inv_app[2:, 2:] = (C_sqrt_n + C_n).T @ Delta @ F_n @ Delta.T @  (C_sqrt_n + C_n) + L/n \
+    #            + 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L
+    A_22_inv_app[2:, 2:] = (C_sqrt_n + C_n).T @ Delta @ F_n @ Delta.T @  (C_sqrt_n + C_n) \
+            - C_n.T @ Delta @ F_n @ Delta.T @ C_n \
+            + L/n + 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L
+    b_app = float(1/(A_12 @ A_22_inv_app @ A_21)) * A_12 @ A_22_inv_app @ Y
+    params = A_22_inv_app @ (np.eye(n+2) - n/(A_12 @ A_22_inv_app @ A_21)* A_22_inv_app) @ Y
     ### For control purposes.
     print("For tmp")
-    tmp_list.append(np.linalg.norm(C_sqrt_n.T @ Delta @ F_n @ Delta.T @ C_sqrt_n, ord=2))
-    tmp2_list.append(np.linalg.norm(C_n.T @ Delta @ F_n @ Delta.T @ C_sqrt_n, ord=2))
-    tmp3_list.append(np.linalg.norm(C_n.T @ Delta @ F_n @ Delta.T @ C_n, ord=2))
-    tmp4_list.append(np.linalg.norm(C_sqrt_n, ord=2))
+    tmp_list.append(np.linalg.norm(A_22_inv, ord=2))
+    tmp2_list.append(np.linalg.norm(A_22_inv_app, ord=2))
+    tmp3_list.append(np.linalg.norm(A_22_inv - A_22_inv_app, ord=2))
 
     #print("For K")
     #K_diff_list.append(np.linalg.norm(K - K_app, ord=2))
@@ -165,10 +166,10 @@ for i in range(len(p_list)):
 
 print("")
 print("Results of operator norms")
-print("\t C_sqrt_n C_sqrt_n : ", tmp_list[1]/tmp_list[0])
-print("\t C_sqrt_n C_n : ", tmp2_list[1]/tmp2_list[0])
-print("\t C_n C_n : ", tmp3_list[1]/tmp3_list[0])
-print("\t C_sqrt_n : ", tmp4_list[1]/tmp4_list[0])
+print("\t normal : ", tmp_list[1]/tmp_list[0])
+print("\t approx : ", tmp2_list[1]/tmp2_list[0])
+print("\t diff : ", tmp3_list[1]/tmp3_list[0])
+#print("\t rest - F_n : ", tmp4_list[1]/tmp4_list[0])
 #print("\t diff : ", tmp3_list[1]/tmp3_list[0])
 #print("\tE order: ", E_list[1]/E_list[0])
 #print("\tK: ", K_diff_list[1]/K_diff_list[0])
