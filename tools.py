@@ -603,3 +603,13 @@ def build_F_n(Delta, E_app):
     F_n = np.array([[a11, a12], [a21, a22]])
     F_n = 1/(a11 * a22 - a12*a21) * F_n
     return F_n
+
+def build_tilde_F_n(Delta, E_app):
+    Delta_pos = Delta[:, 0].reshape((-1, 1))
+    Delta_neg = Delta[:, 1].reshape((-1, 1))
+    a11 = float(Delta_neg.T @ E_app @ Delta_neg)
+    a12 = float(-Delta_pos.T @ E_app @ Delta_neg)
+    a21 = float(-Delta_pos.T @ E_app @ Delta_neg)
+    a22 = float(Delta_pos.T @ E_app @ Delta_pos)
+    tilde_F_n = np.array([[a11, a12], [a21, a22]])
+    return tilde_F_n
