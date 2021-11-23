@@ -8,10 +8,10 @@ from config import Config
 from pathlib import Path
 #from functools import partial
 from scipy.spatial.distance import pdist, squareform
-from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, \
+from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, build_A_1_11, \
                 build_C_1, build_C_sqrt_n, build_C_n, build_D_1, build_D_sqrt_n, \
                 build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
-                build_Delta, build_F_n, build_tilde_F_n, build_tmp
+                build_Delta, build_F_n, build_tilde_F_n
 
 from tools import f, f_p, f_pp, build_objects
 
@@ -29,12 +29,14 @@ conf_default = Config(Path('conf_default.json'))
 mode = "strict"
 gamma = 1
 mean_scal = 1
-cov_scal = 1e-1
+cov_scal = 1
 print(f"cov_scal is {cov_scal}")
-list_cardinals = [[300, 150, 150, 250]]
-p_list = [512]
+#list_cardinals = [[300, 150, 150, 250]]
+#p_list = [512]
 #list_cardinals = [[300, 150, 150, 250], [600, 300, 300, 500]]
 #p_list = [512, 1024]
+list_cardinals = [[600, 300, 300, 500], [1200, 600, 600, 1000]]
+p_list = [1024, 2048]
 #list_cardinals = [[300, 150, 150, 250], [600, 300, 300, 500], [1200, 600, 600, 1000]]
 #p_list = [512, 1024, 2048]
 
@@ -60,6 +62,9 @@ tmp4_list = []
 tmp5_list = []
 tmp6_list = []
 tmp7_list = []
+lambdas_list = []
+lambdas_app_list = []
+lambdas_app2_list = []
 
 for i in range(len(p_list)):
     # Class distribution
@@ -121,11 +126,10 @@ for i in range(len(p_list)):
     beta = f(0) - f(tau) + tau*f_p(tau)
     
     A_1 = build_A_1(mu_list, t, S, tau, V)
-    A_1_sm = build_tmp(mu_list, t, S, tau, V)
+    A_1_11 = build_A_1_11(mu_list, t, S, tau)
     A_sqrt_n = build_A_sqrt_n(t, p, V)
     A_n = build_A_n(tau, k, p, V)
     A = A_1 + A_sqrt_n + A_n
-    A_1_11 = A_1_sm[:k, :k]
 
     C_n = build_C_n(A_1, A_sqrt_n, A_n, tau, gamma, W.T)
     C_sqrt_n = build_C_sqrt_n(A_sqrt_n, A_n, tau, gamma)
@@ -157,85 +161,86 @@ for i in range(len(p_list)):
     tr_diag = np.diag(np.array([np.trace(cov_list[i]) for i in range(k)]))
     tr_diag = J @ tr_diag
     tr_diag = 1/p * np.diag(np.sum(tr_diag, axis=1))
-    mat1 = n**2 * Q - beta*np.eye(n)
-    mat2 = 2*f_p(tau) * (1/p * J @ A_1_11 @ J.T 
+    mat_n = 2*f_p(tau) * (1/p * J @ A_1_11 @ J.T 
             + tr_diag
             + gamma*f_p(tau)/(1+gamma*f(tau)) * 1/(2*p) * J @ t @ t.T @ J.T) \
             - beta*np.eye(n)
-    terms = [2*f_p(tau)* A_1,
-             2*f_p(tau)*1/p * W @ W.T,
-             2*f_p(tau)*1/n * A_sqrt_n @ L @ A_sqrt_n,
-             - beta*np.eye(n)]
-    terms2 = [2*f_p(tau)* 1/p * J @ A_1_11 @ J.T,
-              2*f_p(tau)*tr_diag,
-              2*f_p(tau)*gamma*f_p(tau)/(1+gamma*f(tau)) * 1/(2*p) * J @ t @ t.T @ J.T,
-              - beta*np.eye(n)]
-    tilde_F_n_app2 = - inv_Delta.T @ mat2 @ inv_Delta
+    mat_sqrt_n = 2*f_p(tau) * (1/p * J @ M.T @ W.T + 1/p * W @ M @ J.T 
+            - f_pp(tau)/(2*f_p(tau)*np.sqrt(p)) * (psi @ t.T @ J.T + J@t@psi.T)
+            + 1/p*(W @ W.T - tr_diag) 
+            + gamma*f_p(tau)/(2*np.sqrt(p)*(1+gamma*f_p(tau))) * (J@t@psi.T +
+                psi@t.T@ J.T)
+            )
+    terms = [2*f_p(tau) * (1/p * J @ M.T @ W.T + 1/p * W @ M @ J.T ),
+             - 2*f_p(tau) *f_pp(tau)/(2*f_p(tau)*np.sqrt(p)) * (psi @ t.T @ J.T + J@t@psi.T),
+             2*f_p(tau)/p*(W @ W.T - tr_diag),
+             2*f_p(tau)*gamma*f_p(tau)/(2*np.sqrt(p)*(1+gamma*f_p(tau))) * (J@t@psi.T +
+                psi@t.T@ J.T)
+            ]
+    tilde_F_n_app2 = - inv_Delta.T @ mat_n @ inv_Delta
     F_n = build_F_n(Delta, E_app)
-
-    ### Build an approximate of (n**2 * Q - beta*np.eye(n))
     
-    ### approx of A_22^{-1}
-    #A_22_inv_app = np.zeros((n+2, n+2))
-    #A_22_inv_app[:2, :2] = F_n
-    #A_22_inv_app[2:, :2] = - (C_sqrt_n + C_n).T @ Delta @ F_n
-    #A_22_inv_app[:2, 2:] = - F_n @ Delta.T @ (C_sqrt_n + C_n)
-    #A_22_inv_app[2:, 2:] = (C_sqrt_n + C_n).T @ Delta @ F_n @ Delta.T @  (C_sqrt_n + C_n) \
-    #        + L/n + 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L \
-    #        + L @ (Q - beta/n**2 * np.eye(n)) @ L
-    #b_app = float(1/(A_12 @ A_22_inv_app @ A_21)) * A_12 @ A_22_inv_app @ Y
-    #b_app = float(b_app)
-    #params_app = A_22_inv_app @ (np.eye(n+2) - 1/float(A_12 @ A_22_inv_app @ A_21) * A_21 @ A_12 @ A_22_inv_app) @ Y
+    tilde_G_n = build_tilde_F_n(Delta, mat_n)
+    tilde_G_sqrt_n = build_tilde_F_n(Delta, mat_sqrt_n)
+
     #sol_fair_app = np.concatenate([np.array([b_app]), params_app])
     b_app = float(1/(A_12 @ A_22_inv @ A_21)) * A_12 @ A_22_inv @ Y
     b_app = float(b_app)
     params_app = A_22_inv @ (np.eye(n+2) - 1/float(A_12 @ A_22_inv @ A_21) * A_21 @ A_12 @ A_22_inv) @ Y
     sol_fair_app = np.concatenate([np.array([b_app]), params_app])
 
+    ### Compute b_app2
+    b_app2 = ones_k.T @ n_signed / n
+    det_tilde_G_n = np.linalg.det(tilde_G_n)
+    b_sqrt_n = ((1+gamma*f(tau))/(gamma*f_p(tau)**2) * det_tilde_G_n + 1/p * t.T
+            @ J.T @ Delta @ tilde_G_n @ Delta.T @ J @ t)
+    b_sqrt_n = 1/b_sqrt_n
+    b_sqrt_n = b_sqrt_n * 1/np.sqrt(p) * t.T @ J.T @ Delta @ tilde_G_n @ ( 
+            2*ones_k.T @ n_signed /(n**2*p) * Delta.T @ J @ A_1_11 @ vec_prop - 2/(n*p) * Delta.T @ J @ (
+                A_1_11 @ ((1+gamma*f(tau))* n_signed - gamma*f(tau)*ones_k.T @ n_signed/n * vec_prop) 
+                + gamma*f_p(tau)/2 * t.T @ n_signed * t)
+            )
+    b_app2 = b_app2 + b_sqrt_n
+
     ### For control purposes.
     print("For tmp")
     ones_n = np.ones((n,1))
-    bla = Delta.T @ \
-            (1/p *  J @ A_1_11 @ vec_prop + 1/p *  J @ M.T @ W.T @ ones_n + 1/p*  W @ M @ vec_prop 
-                - n/np.sqrt(p) * tilde_v - f_pp(tau)/(2*f_p(tau)) * ones_n.T @ psi * psi 
-                - f_pp(tau)/(4*f_p(tau)) * n * psi**2 - f_pp(tau)/(2*f_p(tau)) * n/np.sqrt(p)*tilde_psi
-                - f_pp(tau)/(2*np.sqrt(p)*f_p(tau)) * ones_n.T @ psi * J @ t)
-    #tmp_list.append(t_diff.T @ tilde_F_n_app2 @ Delta.T @ J @ A_1_11 @ vec_prop)
-    tmp_list.append(2*f_p(tau)/n * ones_n.T @ L @ A_sqrt_n @ L @ ones_n)
-    #tmp2_list.append(np.linalg.norm(tilde_F_n - tilde_F_n_app, ord=2))
-    #tmp3_list.append(np.linalg.norm(tilde_F_n - tilde_F_n_app2, ord=2))
-    #tmp_list.append(ones_n.T @ C_sqrt_n.T @ Delta @ F_n @ Delta.T @ C_sqrt_n @ ones_n)
-    #tmp2_list.append(ones_n.T @ C_sqrt_n.T @ Delta @ F_n @ Delta.T @ C_n @ ones_n)
-    #tmp3_list.append(ones_n.T @ C_n.T @ Delta @ F_n @ Delta.T @ C_n @ ones_n)
-    #tmp4_list.append(ones_n.T @ L/n @ ones_n)
-    #tmp5_list.append(2*f_p(tau)/n * ones_n.T @ L @ A_sqrt_n @ L @ ones_n)
-    #tmp6_list.append(ones_n.T @ L @ (Q - beta/n**2 *np.eye(n)) @ L @ ones_n)
-    #tmp7_list.append(A_12 @ (A_22_inv - A_22_inv_app) @ A_21)
-
     
     ## Debug some quantities
-    #tmp_list.append(Delta_pos.T @ E @ Delta_pos)
-    #tmp2_list.append(Delta_pos.T @ E @ Delta_pos + Delta_pos.T @ (n**2 * Q - beta*np.eye(n)) @ Delta_pos)
-    #tmp3_list.append(Delta_pos.T @ E @ Delta_pos + app)
-    #tmp4_list.append(Delta_pos.T @ (n**2 * Q - beta*np.eye(n)) @ Delta_pos - app)
-    #print("For K")
-    #K_diff_list.append(np.linalg.norm(K - K_app, ord=2))
-    #print("For A")
-    #A_1_list.append(np.linalg.norm(A_1, ord=2))
-    #A_sqrt_n_list.append(np.linalg.norm(A_sqrt_n, ord=2))
-    #A_n_list.append(np.linalg.norm(A_n, ord=2))
-    #print("For C")
-    #C_1_list.append(np.linalg.norm(C_1, ord=2))
-    #C_sqrt_n_list.append(np.linalg.norm(C_sqrt_n, ord=2))
-    #C_n_list.append(np.linalg.norm(C_n, ord=2))
-    #print("For D")
-    #D_1_list.append(np.linalg.norm(D_1, ord=2))
-    #D_sqrt_n_list.append(np.linalg.norm(D_sqrt_n, ord=2))
-    #D_n_list.append(np.linalg.norm(D_n, ord=2))
+    t1 = gamma*f_p(tau)/(1+gamma*f(tau)) * (1/np.sqrt(p) * Delta.T @ J @ t + Delta.T @ psi 
+            - 2/(n*p) * Delta.T @ J @ A_1_11 @ vec_prop
+            )
+    t2 = gamma*f_p(tau)/(1+gamma*f(tau))*( ones_k.T @ n_signed / n * (1/np.sqrt(p) * Delta.T @ J @ t + Delta.T @ psi) \
+            - 2/(n*p) * Delta.T@J@A_1_11@((1+gamma*f(tau)) * n_signed - gamma*f(tau)*ones_k.T @ n_signed/n * vec_prop)
+            - gamma*f_p(tau)/(n*p) * t.T @ n_signed * Delta.T @ J @ t
+            )
+    lambdas = np.array([lambda_pos, lambda_neg]).reshape((2,1))
+    lambdas_app = 1/det_tilde_G_n*tilde_G_n @ Delta.T @ (C_sqrt_n + C_n) @ (y - b_app2*ones_n)
+    lambdas_app2 = 1/det_tilde_G_n*tilde_G_n @ (t2 - b*t1)
+    print("lambdas: ", lambdas.reshape((-1,)))
+    print("lambdas_app: ", lambdas_app.reshape((-1,)))
+    print("lambdas_app2: ", lambdas_app2.reshape((-1,)))
+    lambdas_list.append(lambdas)
+    lambdas_app_list.append(lambdas_app)
+    tmp3_list.append(lambdas - lambdas_app2)
+
+    # debug terms
+    tmp_list.append((lambdas - lambdas_app).reshape((-1,)))
+    tmp2_list.append((lambdas - lambdas_app2).reshape((-1,)))
+    #print("t1 real: ", Delta.T @ (C_sqrt_n + C_n) @ ones_n)
+    #print("t2 real: ", Delta.T @ (C_sqrt_n + C_n) @ y)
+    #print("t1 app: ", t1)
+    #print("t2 app: ", t2)
 
 #print("")
 print("Results of operator norms")
-print("\t tmp : ", tmp_list[1]/tmp_list[0])
+print("\t lambdas - lambdas_app: ", tmp_list[1]/tmp_list[0])
+print("\t lambdas - lambdas_app2: ", tmp2_list[1]/tmp2_list[0])
+#print("\t approx1: ", tmp2_list[1]/tmp2_list[0])
+#print("\t tmp: ", tmp3_list[1]/tmp3_list[0])
+#print("\t approx2: ", tmp3_list[1]/tmp3_list[0])
+#print("\t diff1: ", tmp4_list[1]/tmp4_list[0])
+#print("\t diff2: ", tmp5_list[1]/tmp5_list[0])
 #print("\t tmp2 : ", tmp2_list[1]/tmp2_list[0])
 #print("\t tmp3 : ", tmp3_list[1]/tmp3_list[0])
 #print("\t tmp4 : ", tmp4_list[1]/tmp4_list[0])
@@ -246,5 +251,3 @@ print("\t tmp : ", tmp_list[1]/tmp_list[0])
 #print("tilde_F_n:\n", tilde_F_n)
 #print("tilde_F_n_app:\n", tilde_F_n_app)
 #print("tilde_F_n_app2:\n", tilde_F_n_app2)
-
-

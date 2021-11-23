@@ -476,6 +476,17 @@ def build_A_sqrt_n(t, p, V):
 
     return -np.sqrt(p)/2 * V @ A_sqrt_n @ V.T
 
+def build_A_1_11(mu_list, t, S, tau):
+    k = len(mu_list)
+    t = np.squeeze(t)
+    A_1_11 = np.zeros((k, k))
+    for i in range(k):
+        for j in range(k):
+            A_1_11[i, j] = -1/2 * np.linalg.norm(mu_list[i] - mu_list[j])**2
+            A_1_11[i, j] += - f_pp(tau)/(4*f_p(tau)) * (t[i] + t[j])**2
+            A_1_11[i, j] += - f_pp(tau)/f_p(tau) * S[i,j]
+    return A_1_11
+
 def build_A_1(mu_list, t, S, tau, V):
     """
     Args:

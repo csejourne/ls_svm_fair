@@ -13,6 +13,8 @@ from tools import gen_dataset, build_system_matrix, one_hot, \
             build_V, build_A_n, build_A_sqrt_n, build_A_1, build_objects
 
 
+plt.rcParams.update({'font.size': 5})
+
 ### NumPy print threshold size.
 np.set_printoptions(threshold = 100)
 
@@ -34,7 +36,7 @@ p = conf_default.p
 cardinals = conf_default.cardinals
 sigma=p
 n = sum(cardinals)
-nb_loops = 5
+nb_loops = 10
 cardinals_test = [50, 50, 50, 50]
 n_test = sum(cardinals_test)
 k = len(cardinals)
@@ -50,8 +52,11 @@ mu_list = [mean_scal*one_hot(0, p),
            mean_scal*one_hot(1, p),
            beta*mean_scal*one_hot(1, p) + np.sqrt(1 - beta**2) * w2
            ]
-cov_list = [cov_scal*np.eye(p), 2*cov_scal*np.eye(p),
-            cov_scal*np.eye(p), 2*cov_scal*np.eye(p)]
+### Below `cov_list` was used for 
+#cov_list = [cov_scal*np.eye(p), 2*cov_scal*np.eye(p),
+#            cov_scal*np.eye(p), 2*cov_scal*np.eye(p)]
+cov_list = [cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p),
+            cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
 
 # Generate data.
 X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
@@ -151,31 +156,31 @@ for loop in range(nb_loops):
     """
     ### Plot the results.
     """
-    ### Classification results
-    fig, axs = plt.subplots(2)
-    suptitle = r"comparison"
-    fig.suptitle(suptitle)
-    
-    # Data
-    axs[0].plot(results_fair["gen"]["preds"], 'x:k', mfc='blue', mec='blue', markersize=1, linewidth=0.1)
-    axs[0].set_title("Fair classifier")
-    axs[1].plot(results_unfair["gen"]["preds"], 'x:k', mfc='blue', mec='blue', markersize=1, linewidth=0.1)
-    axs[1].set_title("Unfair classifier")
-    
-    # Markers and all
-    tmp = np.cumsum(np.array(cardinals_test))
-    n_test = np.sum(np.array(cardinals_test))
-    axs[0].plot(np.zeros(n_test), '-k', linewidth=0.5)
-    axs[1].plot(np.zeros(n_test), '-k', linewidth=0.5)
-    axs[0].plot(tmp[0], 0, '|r')
-    axs[0].plot(tmp[0], 0, '|r')
-    axs[0].plot(tmp[1], 0, '|r')
-    axs[0].plot(tmp[2], 0, '|r')
-    axs[1].plot(tmp[0], 0, '|r')
-    axs[1].plot(tmp[0], 0, '|r')
-    axs[1].plot(tmp[1], 0, '|r')
-    axs[1].plot(tmp[2], 0, '|r')
-    fig.savefig(f"results/strict/tmp.pdf")
+    #### Classification results
+    #fig, axs = plt.subplots(2)
+    #suptitle = r"comparison"
+    #fig.suptitle(suptitle)
+    #
+    ## Data
+    #axs[0].plot(results_fair["gen"]["preds"], 'x:k', mfc='blue', mec='blue', markersize=2, linewidth=0.4)
+    #axs[0].set_title("Fair classifier")
+    #axs[1].plot(results_unfair["gen"]["preds"], 'x:k', mfc='blue', mec='blue', markersize=2, linewidth=0.4)
+    #axs[1].set_title("Unfair classifier")
+    #
+    ## Markers and all
+    #tmp = np.cumsum(np.array(cardinals_test))
+    #n_test = np.sum(np.array(cardinals_test))
+    #axs[0].plot(np.zeros(n_test), '-k', linewidth=0.5)
+    #axs[1].plot(np.zeros(n_test), '-k', linewidth=0.5)
+    #axs[0].plot(tmp[0], 0, '|r')
+    #axs[0].plot(tmp[0], 0, '|r')
+    #axs[0].plot(tmp[1], 0, '|r')
+    #axs[0].plot(tmp[2], 0, '|r')
+    #axs[1].plot(tmp[0], 0, '|r')
+    #axs[1].plot(tmp[0], 0, '|r')
+    #axs[1].plot(tmp[1], 0, '|r')
+    #axs[1].plot(tmp[2], 0, '|r')
+    #fig.savefig(f"results/strict/classif_{loop}.pdf")
     
 ### Predictions distributions.
 fig, axs = plt.subplots(2)
@@ -197,5 +202,5 @@ axs[1].set_title("unfair LS-SVM")
 handles = [Rectangle((0, 0), 1,1,color=c) for c in ['blue', 'green', 'red', 'yellow']]
 labels=["Y = 1, A = 0", "Y = 1, A = 1", "Y = -1, A = 0", "Y = -1, A = 1"]
 fig.legend(handles, labels)
-fig.savefig("results/distribs/tmp.pdf")
+fig.savefig("results/distribs/distrib.pdf")
 plt.show()
