@@ -29,13 +29,10 @@ h_b_list = []
 h_lambdas_app_list = []
 h_lambdas_app2_list = []
 h_b_diff_list = []
-h_b_diff2_list = []
 h_num_list = []
 h_denom_list = []
 h_num_app_list = []
 h_denom_app_list = []
-h_num_app2_list = []
-h_denom_app2_list = []
 h_num_diff_list = []
 h_denom_diff_list = []
 
@@ -86,7 +83,6 @@ for id_iter in range(nb_iter):
     lambdas_app_list = []
     lambdas_app2_list = []
     b_diff_list = []
-    b_diff2_list = []
     num_list = []
     denom_list = []
     num_app_list = []
@@ -227,7 +223,7 @@ for id_iter in range(nb_iter):
         factor = ones_k.T @ n_signed / n
 
         ### Debug formula for A_{12} A_{22}^{-1} Y
-        num_app2 = gamma/(1+gamma*f(tau)) * factor - 1/det_tilde_F_n_app*(gamma*f_p(tau)/(1+gamma*f(tau)))**2 * (
+        num_app = gamma/(1+gamma*f(tau)) * factor - 1/det_tilde_F_n_app*(gamma*f_p(tau)/(1+gamma*f(tau)))**2 * (
                 factor* 1/p * t.T @ J.T @ Delta @ (tilde_G_n +tilde_G_sqrt_n) @ Delta.T @ J @ t
                 + 1/np.sqrt(p)*t.T @ J.T @ Delta @ tilde_G_n @ (factor*Delta.T @ psi - 2/(n*p) * Delta.T @ J @ (
                     A_1_11@( (1+gamma*f(tau))*n_signed - gamma*f(tau)*factor*vec_prop) + gamma*f_p(tau)/2 * t.T @ n_signed*t)
@@ -236,7 +232,7 @@ for id_iter in range(nb_iter):
                 ) \
                 - f_p(tau)/n**2 * gamma**2/(1+gamma*f(tau)) * 1/np.sqrt(p) * vec_prop.T @ T @ n_signed
                 #+ 2*f_p(tau)/n**2 * ones_n.T @ L @ A_sqrt_n @ L @ y
-        denom_app2  = gamma/(1+gamma*f(tau)) - 1/det_tilde_F_n_app * (gamma*f_p(tau)/(1+gamma*f(tau)))**2 * (
+        denom_app  = gamma/(1+gamma*f(tau)) - 1/det_tilde_F_n_app * (gamma*f_p(tau)/(1+gamma*f(tau)))**2 * (
                 1/p * t.T @ J.T @ Delta @ (tilde_G_n + tilde_G_sqrt_n) @ Delta.T @ J @ t
                 + 1/np.sqrt(p) * t.T @ J.T @ Delta @ tilde_G_n @ (Delta.T @ psi - 2/(n*p) * Delta.T @ J@A_1_11@vec_prop)
                 + 1/np.sqrt(p) * (psi.T @Delta - 2/(n*p)*vec_prop.T @ A_1_11 @ J.T @ Delta ) @ tilde_G_n @ Delta.T@J@t
@@ -244,7 +240,6 @@ for id_iter in range(nb_iter):
 
         ### Compute approximation of `b`
         # First
-        b_app = num_app2 / denom_app2
         # second
         b_sqrt_n = gamma/(1+gamma*f(tau)) - 1/det_tilde_F_n_app*(gamma*f_p(tau)/(1+gamma*f(tau)))**2 * 1/p * t.T @ J.T @ Delta @ tilde_F_n_app @ Delta.T @ J @ t
         b_sqrt_n = 1/b_sqrt_n
@@ -256,8 +251,7 @@ for id_iter in range(nb_iter):
                 )
                 + 2*f_p(tau)/n**2 * ones_n.T @ L @ A_sqrt_n @ L @ y
             )
-        #b_sqrt_n = 1/denom_app2 * (num_app2 - gamma/(1+gamma*f(tau))*factor)
-        b_app2 = ones_k.T @ n_signed / n + b_sqrt_n
+        b_app = ones_k.T @ n_signed / n + b_sqrt_n
 
         ### For `lambdas`
         t1 = gamma*f_p(tau)/(1+gamma*f(tau)) * (1/np.sqrt(p) * Delta.T @ J @ t + Delta.T @ psi 
@@ -268,7 +262,7 @@ for id_iter in range(nb_iter):
                 - gamma*f_p(tau)/(n*p) * t.T @ n_signed * Delta.T @ J @ t
                 )
         lambdas = np.array([lambda_pos, lambda_neg]).reshape((2,1))
-        lambdas_app = 1/det_tilde_G_n*tilde_G_n @ Delta.T @ (C_sqrt_n + C_n) @ (y - b_app2*ones_n)
+        lambdas_app = 1/det_tilde_G_n*tilde_G_n @ Delta.T @ (C_sqrt_n + C_n) @ (y - b_app*ones_n)
         lambdas_app2 = 1/det_tilde_G_n*tilde_G_n @ (t2 - b*t1)
         lambdas = lambdas.reshape((-1,))
         lambdas_app = lambdas_app.reshape((-1,))
@@ -280,14 +274,10 @@ for id_iter in range(nb_iter):
         denom_list.append(denom)
         num_app_list.append(num_app)
         denom_app_list.append(denom_app)
-        num_app2_list.append(num_app2)
-        denom_app2_list.append(denom_app2)
         # For `lambdas`
         lambdas_list.append(lambdas)
         lambdas_app_list.append(lambdas_app)
         lambdas_app2_list.append(lambdas_app)
-        b_diff_list.append(b - b_app)
-        b_diff2_list.append(b - b_app2)
     
     #print("")
     #print("Results of operator norms")
@@ -297,13 +287,10 @@ for id_iter in range(nb_iter):
     h_lambdas_app_list.append(lambdas_app_list)
     h_lambdas_app2_list.append(lambdas_app2_list)
     h_b_diff_list.append(b_diff_list)
-    h_b_diff2_list.append(b_diff2_list)
     h_num_list.append(num_list)
     h_denom_list.append(denom_list)
     h_num_app_list.append(num_app_list)
     h_denom_app_list.append(denom_app_list)
-    h_num_app2_list.append(num_app2_list)
-    h_denom_app2_list.append(denom_app2_list)
 
     ### Save
     if save_arr:
@@ -314,17 +301,12 @@ for id_iter in range(nb_iter):
         np.save(open('results/num_list.npy', 'wb'), np.array(h_num_list))
         np.save(open('results/denom_app_list.npy', 'wb'), np.array(h_denom_app_list))
         np.save(open('results/num_app_list.npy', 'wb'), np.array(h_num_app_list))
-        np.save(open('results/denom_app2_list.npy', 'wb'), np.array(h_denom_app2_list))
-        np.save(open('results/num_app2_list.npy', 'wb'), np.array(h_num_app2_list))
         np.save(open('results/denom_list.npy', 'wb'), np.array(h_denom_list))
         np.save(open('results/num_list.npy', 'wb'), np.array(h_num_list))
         np.save(open('results/denom_list.npy', 'wb'), np.array(h_denom_list))
 
 h_denom_list = np.squeeze(np.array(h_denom_list))
 h_denom_app_list = np.squeeze(np.array(h_denom_app_list))
-h_denom_app2_list = np.squeeze(np.array(h_denom_app2_list))
 h_num_list = np.squeeze(np.array(h_num_list))
 h_num_app_list = np.squeeze(np.array(h_num_app_list))
-h_num_app2_list = np.squeeze(np.array(h_num_app2_list))
 h_b_diff_list = np.squeeze(np.array(h_b_diff_list))
-h_b_diff2_list = np.squeeze(np.array(h_b_diff2_list))
