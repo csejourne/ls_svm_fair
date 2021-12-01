@@ -1,4 +1,5 @@
 import numpy as np
+import pickle as pk
 import numpy.random as rng
 import pprint
 import scipy.linalg as sp_linalg
@@ -19,15 +20,23 @@ from tools import f, f_p, f_pp, build_objects
 np.set_printoptions(threshold = 100)
 
 ### Some flags
-save_arr = False
+save_arr = True
+get_bk = False
 """
 We iterate over a high number of experiences to better evaluate the orders.
 """
-nb_iter = 1
+nb_iter = 200
 h_lambdas_list = []
 h_b_list = []
+h_alpha_list = []
+h_alpha_app_list = []
+h_alpha_app2_list = []
+h_alpha_diff_list = []
+h_alpha_diff2_list = []
 h_lambdas_app_list = []
 h_lambdas_app2_list = []
+h_b_list = []
+h_b_app_list = []
 h_b_diff_list = []
 h_num_list = []
 h_denom_list = []
@@ -52,8 +61,8 @@ for id_iter in range(nb_iter):
     print(f"cov_scal is {cov_scal}")
     #list_cardinals = [[300, 150, 150, 250]]
     #p_list = [512]
-    list_cardinals = [[300, 150, 150, 250], [600, 300, 300, 500]]
-    p_list = [512, 1024]
+    list_cardinals = [[150, 75, 75, 125], [300, 150, 150, 250], [600, 300, 300, 500]]
+    p_list = [256, 512, 1024]
     #list_cardinals = [[600, 300, 300, 500], [1200, 600, 600, 1000]]
     #p_list = [1024, 2048]
     #list_cardinals = [[1200, 600, 600, 1000], [2400, 1200, 1200, 2000]]
@@ -79,9 +88,16 @@ for id_iter in range(nb_iter):
     tmp_list = []
     tmp2_list = []
     tmp3_list = []
+    alpha_list = []
+    alpha_app_list = []
+    alpha_app2_list = []
+    alpha_diff_list = []
+    alpha_diff2_list = []
     lambdas_list = []
     lambdas_app_list = []
     lambdas_app2_list = []
+    b_list = []
+    b_app_list = []
     b_diff_list = []
     num_list = []
     denom_list = []
@@ -128,6 +144,7 @@ for id_iter in range(nb_iter):
         lambda_pos = sol_fair[1]
         lambda_neg = sol_fair[2]
         alpha = sol_fair[3:]
+        alpha = alpha.reshape((-1, 1))
         B_11 = matrix_fair[1:3, 1:3]
         B_12 = matrix_fair[1:3, 3:]
         B_21 = matrix_fair[3:, 1:3]
@@ -216,7 +233,7 @@ for id_iter in range(nb_iter):
         ones_n = np.ones((n,1))
         
         """
-        Debug some quantities
+        Debug approximations
         """
         num = A_12 @ A_22_inv @ Y
         denom = A_12 @ A_22_inv @ A_21
@@ -231,7 +248,6 @@ for id_iter in range(nb_iter):
                 + factor*1/np.sqrt(p)*(psi.T @ Delta -2/(n*p) * vec_prop.T @ A_1_11 @ J.T @ Delta) @ tilde_G_n @ Delta.T @ J@t
                 ) \
                 - f_p(tau)/n**2 * gamma**2/(1+gamma*f(tau)) * 1/np.sqrt(p) * vec_prop.T @ T @ n_signed
-                #+ 2*f_p(tau)/n**2 * ones_n.T @ L @ A_sqrt_n @ L @ y
         denom_app  = gamma/(1+gamma*f(tau)) - 1/det_tilde_F_n_app * (gamma*f_p(tau)/(1+gamma*f(tau)))**2 * (
                 1/p * t.T @ J.T @ Delta @ (tilde_G_n + tilde_G_sqrt_n) @ Delta.T @ J @ t
                 + 1/np.sqrt(p) * t.T @ J.T @ Delta @ tilde_G_n @ (Delta.T @ psi - 2/(n*p) * Delta.T @ J@A_1_11@vec_prop)
@@ -239,8 +255,6 @@ for id_iter in range(nb_iter):
                 )
 
         ### Compute approximation of `b`
-        # First
-        # second
         b_sqrt_n = gamma/(1+gamma*f(tau)) - 1/det_tilde_F_n_app*(gamma*f_p(tau)/(1+gamma*f(tau)))**2 * 1/p * t.T @ J.T @ Delta @ tilde_F_n_app @ Delta.T @ J @ t
         b_sqrt_n = 1/b_sqrt_n
         b_sqrt_n = b_sqrt_n * (
@@ -253,6 +267,17 @@ for id_iter in range(nb_iter):
             )
         b_app = ones_k.T @ n_signed / n + b_sqrt_n
 
+        ### For alpha
+        alpha_app = ((C_sqrt_n + C_n).T @ Delta @ F_n @ Delta.T @ (C_sqrt_n + C_n) + L/n + 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L) @ (y - b*ones_n)
+        alpha_app2 = gamma/n*(y - factor*ones_n - b_sqrt_n * 1/(1+gamma*f(tau))*ones_n) \
+                - 1/n*(gamma*f_p(tau)/(1+gamma*f(tau)))**2 * 1/det_tilde_G_n * 1/np.sqrt(p)*t.T @ J.T @ Delta @ tilde_G_n @ (
+                        factor*2/(n*p) * Delta.T @ J @ A_1_11 @ vec_prop - 2/(n*p) * Delta.T @ J @ (
+                            A_1_11 @ ((1+gamma*f(tau))*n_signed - gamma*f(tau)*factor * vec_prop) + gamma*f_p(tau)/2 * t.T @ n_signed*t
+                            )
+                        - b_sqrt_n * 1/np.sqrt(p) * Delta.T @ J @ t
+                        ) * ones_n \
+                - gamma*f_p(tau)/n**2 * t.T @ n_signed/np.sqrt(p) * L @ ones_n
+                #+ 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L @ (y - b*ones_n)
         ### For `lambdas`
         t1 = gamma*f_p(tau)/(1+gamma*f(tau)) * (1/np.sqrt(p) * Delta.T @ J @ t + Delta.T @ psi 
                 - 2/(n*p) * Delta.T @ J @ A_1_11 @ vec_prop
@@ -270,22 +295,41 @@ for id_iter in range(nb_iter):
 
         ### Store information
         # For `b`
+        b_list.append(b)
+        b_app_list.append(b_app)
+        b_diff_list.append(b - b_app)
         num_list.append(num)
         denom_list.append(denom)
         num_app_list.append(num_app)
         denom_app_list.append(denom_app)
+        # For `alpha`
+        alpha_list.append(alpha)
+        alpha_app_list.append(alpha_app)
+        alpha_app2_list.append(alpha_app2)
+        alpha_diff_list.append(alpha - alpha_app)
+        alpha_diff2_list.append(alpha - alpha_app2)
         # For `lambdas`
         lambdas_list.append(lambdas)
         lambdas_app_list.append(lambdas_app)
         lambdas_app2_list.append(lambdas_app)
     
+        ### other stuff
+        tmp_list.append(1/n**2 * L @ A_sqrt_n @ L @ ones_n)
+        tmp2_list.append(1/n**2 * L @ A_sqrt_n @ L @ y)
     #print("")
     #print("Results of operator norms")
 
     ### Store information from the iterations.
+    h_alpha_list.append(alpha_list)
+    h_alpha_app_list.append(alpha_app_list)
+    h_alpha_app2_list.append(alpha_app2_list)
+    h_alpha_diff_list.append(alpha_diff_list)
+    h_alpha_diff2_list.append(alpha_diff2_list)
     h_lambdas_list.append(lambdas_list)
     h_lambdas_app_list.append(lambdas_app_list)
     h_lambdas_app2_list.append(lambdas_app2_list)
+    h_b_list.append(b_list)
+    h_b_app_list.append(b_app_list)
     h_b_diff_list.append(b_diff_list)
     h_num_list.append(num_list)
     h_denom_list.append(denom_list)
@@ -299,14 +343,31 @@ for id_iter in range(nb_iter):
         np.save(open('results/lambdas_app2.npy', 'wb'), np.array(h_lambdas_app2_list))
         np.save(open('results/b_diff.npy', 'wb'), np.array(h_b_diff_list))
         np.save(open('results/num_list.npy', 'wb'), np.array(h_num_list))
+        np.save(open('results/denom_list.npy', 'wb'), np.array(h_denom_list))
         np.save(open('results/denom_app_list.npy', 'wb'), np.array(h_denom_app_list))
         np.save(open('results/num_app_list.npy', 'wb'), np.array(h_num_app_list))
-        np.save(open('results/denom_list.npy', 'wb'), np.array(h_denom_list))
-        np.save(open('results/num_list.npy', 'wb'), np.array(h_num_list))
-        np.save(open('results/denom_list.npy', 'wb'), np.array(h_denom_list))
+        pk.dump(np.array(h_alpha_list), open('results/alpha.pk', 'wb'))
+        pk.dump(np.array(h_alpha_app_list), open('results/alpha_app.pk', 'wb'))
+        pk.dump(np.array(h_alpha_app2_list), open('results/alpha_app2.pk', 'wb'))
 
 h_denom_list = np.squeeze(np.array(h_denom_list))
 h_denom_app_list = np.squeeze(np.array(h_denom_app_list))
 h_num_list = np.squeeze(np.array(h_num_list))
 h_num_app_list = np.squeeze(np.array(h_num_app_list))
 h_b_diff_list = np.squeeze(np.array(h_b_diff_list))
+h_lambdas_list = np.squeeze(np.array(h_lambdas_list))
+h_lambdas_app_list = np.squeeze(np.array(h_lambdas_app_list))
+h_lambdas_app2_list = np.squeeze(np.array(h_lambdas_app2_list))
+
+if get_bk:
+    h_lambdas_list = np.load(open('results/lambdas.npy', 'rb'))
+    h_lambdas_app_list = np.load(open('results/lambdas_app.npy', 'rb'))
+    h_lambdas_app2_list = np.load(open('results/lambdas_app2.npy', 'rb'))
+    h_b_diff_list = np.load(open('results/b_diff.npy', 'rb'))
+    h_num_list = np.load(open('results/num_list.npy', 'rb'))
+    h_denom_list = np.load(open('results/denom_list.npy', 'rb'))
+    h_denom_app_list = np.load(open('results/denom_app_list.npy', 'rb'))
+    h_num_app_list = np.load(open('results/num_app_list.npy', 'rb'))
+    h_alpha_list = pk.load(open('results/alpha.pk', 'rb'))
+    h_alpha_app_list = pk.load(open('results/alpha_app.pk', 'rb'))
+    h_alpha_app2_list = pk.load(open('results/alpha_app2.pk', 'rb'))
