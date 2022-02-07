@@ -53,10 +53,10 @@ mu_list = [mean_scal*one_hot(0, p),
            beta*mean_scal*one_hot(1, p) + np.sqrt(1 - beta**2) * w2
            ]
 ### Below `cov_list` was used for 
-#cov_list = [cov_scal*np.eye(p), 2*cov_scal*np.eye(p),
-#            cov_scal*np.eye(p), 2*cov_scal*np.eye(p)]
-cov_list = [cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p),
-            cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
+cov_list = [cov_scal*np.eye(p), cov_scal*np.eye(p),
+            cov_scal*np.eye(p), cov_scal*np.eye(p)]
+#cov_list = [cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p),
+#            cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
 
 # Generate data.
 X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)

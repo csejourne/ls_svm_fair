@@ -20,12 +20,12 @@ from tools import f, f_p, f_pp, build_objects
 np.set_printoptions(threshold = 100)
 
 ### Some flags
-save_arr = True
-get_bk = False
+save_arr = False
+get_bk = True
 """
 We iterate over a high number of experiences to better evaluate the orders.
 """
-nb_iter = 200
+nb_iter = 1
 h_lambdas_list = []
 h_b_list = []
 h_alpha_list = []
@@ -58,6 +58,7 @@ for id_iter in range(nb_iter):
     gamma = 1
     mean_scal = 3
     cov_scal = 1
+    print("Experiment begin")
     print(f"cov_scal is {cov_scal}")
     #list_cardinals = [[300, 150, 150, 250]]
     #p_list = [512]
@@ -113,17 +114,19 @@ for id_iter in range(nb_iter):
         # Class distribution
         cardinals = list_cardinals[i]
         p = p_list[i]
-        print("\ncardinals: ", cardinals, "  ||  p: ", p)
+        print("\n\tcardinals: ", cardinals, "  ||  p: ", p)
         k = len(cardinals)
         n = sum(cardinals)
         vec_prop = np.array(cardinals).reshape((-1, 1))
         sigma=p
         mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
                    mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
-        #cov_list = [cov_scal*np.eye(p),  cov_scal*np.eye(p),
-        #            cov_scal*np.eye(p),  cov_scal*np.eye(p)]
-        cov_list = [cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p),
-                    cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
+        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
+        #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
+        cov_list = [cov_scal*np.eye(p),  cov_scal*np.eye(p),
+                    (1+2/np.sqrt(p)) * cov_scal*np.eye(p),  (1+2/np.sqrt(p)) * cov_scal*np.eye(p)]
+        #cov_list = [cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p),
+        #            cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
         
         # Generate data.
         X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
@@ -227,9 +230,12 @@ for id_iter in range(nb_iter):
         tilde_G_sqrt_n = build_tilde_F_n(Delta, mat_sqrt_n)
         det_tilde_G_n = np.linalg.det(tilde_G_n)
         det_tilde_F_n_app = np.linalg.det(tilde_F_n_app)
+        # Build the R_n vector
+        factor = ones_k.T @ n_signed / n
+        R_n = 1/det_tilde_G_n * (2*gamma*f_p(tau))/(n*p) * tilde_G_n @ Delta.T @ J @ A_1_11 @ (n_signed - factor* vec_prop)
+        print("R_n is ", R_n)
     
         ### Compute lambdas approximates
-        print("For tmp")
         ones_n = np.ones((n,1))
         
         """
@@ -237,7 +243,6 @@ for id_iter in range(nb_iter):
         """
         num = A_12 @ A_22_inv @ Y
         denom = A_12 @ A_22_inv @ A_21
-        factor = ones_k.T @ n_signed / n
 
         ### Debug formula for A_{12} A_{22}^{-1} Y
         num_app = gamma/(1+gamma*f(tau)) * factor - 1/det_tilde_F_n_app*(gamma*f_p(tau)/(1+gamma*f(tau)))**2 * (

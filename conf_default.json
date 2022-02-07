@@ -1,6 +1,6 @@
 {
-    "mean_scal": 5,
-    "cov_scal": 1.5,
+    "mean_scal": 3,
+    "cov_scal": 1,
     "p": 512,
     "cardinals": [
         300,
