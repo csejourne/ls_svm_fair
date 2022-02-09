@@ -59,12 +59,12 @@ for id_iter in range(nb_iter):
     ### Hyperparameters
     mode = "strict"
     gamma = 1
-    mean_scal = 3
+    mean_scal = 2
     cov_scal = 1
     print("Experiment begin")
     print(f"cov_scal is {cov_scal}")
-    list_cardinals = [[300, 150, 150, 250]]
-    p_list = [512]
+    list_cardinals = [[600, 300, 300, 500]]
+    p_list = [1024]
     #list_cardinals = [[150, 75, 75, 125], [300, 150, 150, 250], [600, 300, 300, 500]]
     #p_list = [256, 512, 1024]
     #list_cardinals = [[600, 300, 300, 500], [1200, 600, 600, 1000]]
@@ -346,19 +346,30 @@ for id_iter in range(nb_iter):
                 
                 results_fair = get_metrics(preds_fair, y_test, ind_dict_test)
 
+            ### Study the results
+            means_exp = np.array([np.mean(g_fair[('pos', 0)].flatten()), 
+                        np.mean(g_fair[('pos', 1)].flatten()),
+                        np.mean(g_fair[('pos', 0)].flatten()),
+                        np.mean(g_fair[('pos', 0)].flatten())])
+
             """
             ### Plot the results.
             """
 
             ### Predictions distributions.
             fig, axs = plt.subplots()
-            axs.hist(g_fair[('pos', 0)].flatten(), 50, facecolor='blue', alpha=0.4)
-            axs.hist(g_fair[('pos', 1)].flatten(), 50, facecolor='green', alpha=0.4)
-            axs.hist(g_fair[('neg', 0)].flatten(), 50, facecolor='red', alpha=0.4)
-            axs.hist(g_fair[('neg', 1)].flatten(), 50, facecolor='yellow', alpha=0.4)
+            axs.hist(g_fair[('pos', 0)].flatten(), 100, facecolor='blue', alpha=0.4, density=True, stacked=True)
+            axs.hist(g_fair[('pos', 1)].flatten(), 100, facecolor='green', alpha=0.4, density=True, stacked=True)
+            axs.hist(g_fair[('neg', 0)].flatten(), 100, facecolor='red', alpha=0.4, density=True, stacked=True)
+            axs.hist(g_fair[('neg', 1)].flatten(), 100, facecolor='yellow', alpha=0.4, density=True, stacked=True)
             axs.axvline(x=c1-c2, color='red')
             axs.set_title("fair LS-SVM")
             
+            ### Associated theoretical gaussian
+            colors = ['b', 'g', 'r', 'y']
+            space = np.linspace(expecs[0] - 8*np.sqrt(varis[0]), expecs[0] + 8*np.sqrt(varis[0]), 300)
+            for a in range(k):
+                axs.plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
             
             # Create legend
             handles = [Rectangle((0, 0), 1,1,color=c) for c in ['blue', 'green', 'red', 'yellow']]
