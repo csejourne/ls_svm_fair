@@ -13,7 +13,8 @@ from scipy.spatial.distance import pdist, squareform
 from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, build_A_1_11, \
                 build_C_1, build_C_sqrt_n, build_C_n, build_D_1, build_D_sqrt_n, \
                 build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
-                build_Delta, build_F_n, build_tilde_F_n, decision_fair, comp_fairness_constraints, get_metrics
+                build_Delta, build_F_n, build_tilde_F_n, decision_fair, decision_unfair, \
+                comp_fairness_constraints, get_metrics
 
 from tools import f, f_p, f_pp, build_objects
 
@@ -147,7 +148,8 @@ for id_iter in range(nb_iter):
         ones_k = np.ones((k, 1))
         n_signed = np.array([cardinals[0], cardinals[1], -cardinals[2], -cardinals[3]]).reshape((-1, 1))
         T = t.reshape((-1, 1)) @ ones_k.T + ones_k @ t.reshape((1, -1))
-    
+
+        ### Fair solution
         matrix_fair = build_system_matrix(X, sigma, gamma, cardinals, [1, 1], ind_dict, mode=mode)
         rhs_fair = np.concatenate([np.zeros(3), y])
         sol_fair = sp_linalg.solve(matrix_fair, rhs_fair)
@@ -166,6 +168,17 @@ for id_iter in range(nb_iter):
         A_22 = matrix_fair[1:, 1:]
         A_22_inv = np.linalg.inv(A_22)
         
+        matrix_unfair = np.zeros((n+1, n+1))
+        matrix_unfair[0, 1:] = 1
+        matrix_unfair[1:, 0] = 1
+        matrix_unfair[1:, 1:] = K + n/gamma * np.eye(n)
+        rhs_unfair = np.concatenate([np.zeros(1), y])
+        sol_unfair = sp_linalg.solve(matrix_unfair, rhs_unfair)
+        b_unfair = sol_unfair[0]
+        alpha_unfair = sol_unfair[1:]
+        # Build the fair decision function
+        pred_function_unfair = partial(decision_unfair, X, b_unfair, alpha_unfair, sigma)
+
         ### Generate approximators for control purposes.
         # Build V
         V = build_V(cardinals, mu_list, cov_list, J, W.T, M, t)
@@ -312,7 +325,14 @@ for id_iter in range(nb_iter):
 
         if do_test:
             pred_function_fair = partial(decision_fair, X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict)
+            pred_function_unfair = partial(decision_unfair, X, b_unfair, alpha_unfair, sigma)
             ### For storing results
+            g_unfair = {}
+            g_unfair[("pos", 0)] = np.zeros((nb_loops, cardinals_test[0]))
+            g_unfair[("pos", 1)] = np.zeros((nb_loops, cardinals_test[1]))
+            g_unfair[("neg", 0)] = np.zeros((nb_loops, cardinals_test[2]))
+            g_unfair[("neg", 1)] = np.zeros((nb_loops, cardinals_test[3]))
+
             g_fair = {}
             g_fair[("pos", 0)] = np.zeros((nb_loops, cardinals_test[0]))
             g_fair[("pos", 1)] = np.zeros((nb_loops, cardinals_test[1]))
@@ -326,6 +346,7 @@ for id_iter in range(nb_iter):
                 assert g_fair.keys() == ind_dict_test.keys()
                 ### Compute raw predictions in $\R$
                 preds_fair = pred_function_fair(X_test)
+                preds_unfair = pred_function_unfair(X_test)
                 c2 = (cardinals[2] + cardinals[3])/n
                 c1 = (cardinals[0] + cardinals[1])/n
             
@@ -334,8 +355,14 @@ for id_iter in range(nb_iter):
                     inds = np.nonzero(np.squeeze(ind_dict_test[key])) 
                     g_fair[key][loop, :] = preds_fair[inds]
                 
+                ### Extract the predictions for each subclass for plotting use later.
+                for key in ind_dict.keys():
+                    inds = np.nonzero(np.squeeze(ind_dict_test[key])) 
+                    g_unfair[key][loop, :] = preds_unfair[inds]
+
                 ### Remove threshold like Zhenyu
                 preds_fair = preds_fair - (c1 - c2) # remove threshold
+                preds_unfair = preds_unfair - (c1 - c2) # remove threshold
                 
                 ### Compare how well both predictions function satisfy fairness properties.
                 pos_const_fair, neg_const_fair = comp_fairness_constraints(preds_fair, ind_dict_test)
@@ -345,6 +372,7 @@ for id_iter in range(nb_iter):
                 print(f"FAIR with int: pos {pos_const_fair_int}, neg {neg_const_fair_int}")
                 
                 results_fair = get_metrics(preds_fair, y_test, ind_dict_test)
+                results_unfair = get_metrics(preds_unfair, y_test, ind_dict_test)
 
             ### Study the results
             means_exp = np.array([np.mean(g_fair[('pos', 0)].flatten()), 
@@ -357,19 +385,27 @@ for id_iter in range(nb_iter):
             """
 
             ### Predictions distributions.
-            fig, axs = plt.subplots()
-            axs.hist(g_fair[('pos', 0)].flatten(), 100, facecolor='blue', alpha=0.4, density=True, stacked=True)
-            axs.hist(g_fair[('pos', 1)].flatten(), 100, facecolor='green', alpha=0.4, density=True, stacked=True)
-            axs.hist(g_fair[('neg', 0)].flatten(), 100, facecolor='red', alpha=0.4, density=True, stacked=True)
-            axs.hist(g_fair[('neg', 1)].flatten(), 100, facecolor='yellow', alpha=0.4, density=True, stacked=True)
-            axs.axvline(x=c1-c2, color='red')
-            axs.set_title("fair LS-SVM")
+            fig, axs = plt.subplots(2)
+            axs[0].hist(g_fair[('pos', 0)].flatten(), 100, facecolor='blue', alpha=0.4, density=True, stacked=True)
+            axs[0].hist(g_fair[('pos', 1)].flatten(), 100, facecolor='green', alpha=0.4, density=True, stacked=True)
+            axs[0].hist(g_fair[('neg', 0)].flatten(), 100, facecolor='red', alpha=0.4, density=True, stacked=True)
+            axs[0].hist(g_fair[('neg', 1)].flatten(), 100, facecolor='yellow', alpha=0.4, density=True, stacked=True)
+            axs[0].axvline(x=c1-c2, color='red')
+            axs[0].set_title("fair LS-SVM")
+
+            axs[1].hist(g_unfair[('pos', 0)].flatten(), 100, facecolor='blue', alpha=0.4, density=True, stacked=True)
+            axs[1].hist(g_unfair[('pos', 1)].flatten(), 100, facecolor='green', alpha=0.4, density=True, stacked=True)
+            axs[1].hist(g_unfair[('neg', 0)].flatten(), 100, facecolor='red', alpha=0.4, density=True, stacked=True)
+            axs[1].hist(g_unfair[('neg', 1)].flatten(), 100, facecolor='yellow', alpha=0.4, density=True, stacked=True)
+            axs[1].axvline(x=c1-c2, color='red')
+            axs[1].set_title("unfair LS-SVM")
             
             ### Associated theoretical gaussian
             colors = ['b', 'g', 'r', 'y']
             space = np.linspace(expecs[0] - 8*np.sqrt(varis[0]), expecs[0] + 8*np.sqrt(varis[0]), 300)
             for a in range(k):
-                axs.plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
+                axs[0].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
+                axs[1].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
             
             # Create legend
             handles = [Rectangle((0, 0), 1,1,color=c) for c in ['blue', 'green', 'red', 'yellow']]
