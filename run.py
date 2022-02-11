@@ -60,12 +60,12 @@ for id_iter in range(nb_iter):
     ### Hyperparameters
     mode = "strict"
     gamma = 1
-    mean_scal = 2
+    mean_scal = 3
     cov_scal = 1
     print("Experiment begin")
     print(f"cov_scal is {cov_scal}")
-    list_cardinals = [[600, 300, 300, 500]]
-    p_list = [1024]
+    list_cardinals = [[32, 32, 96, 96]]
+    p_list = [512]
     #list_cardinals = [[150, 75, 75, 125], [300, 150, 150, 250], [600, 300, 300, 500]]
     #p_list = [256, 512, 1024]
     #list_cardinals = [[600, 300, 300, 500], [1200, 600, 600, 1000]]
@@ -123,14 +123,24 @@ for id_iter in range(nb_iter):
         n = sum(cardinals)
         vec_prop = np.array(cardinals).reshape((-1, 1))
         sigma=p
-        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
-                   mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
+
+        ### Fairness setup
+        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
+        #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
         #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
         #cov_list = [cov_scal*np.eye(p),  cov_scal*np.eye(p),
         #            (1+2/np.sqrt(p)) * cov_scal*np.eye(p),  (1+2/np.sqrt(p)) * cov_scal*np.eye(p)]
-        cov_list = [cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p),
-                    cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
+        #cov_list = [cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p),
+        #            cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
+
+        ### Zhenyu setup (only two classes)
+        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
+                   mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
+        col = np.array([0.4**l for l in range(p)])
+        C_2 = (1+5/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
+        cov_list = [np.eye(p), np.eye(p),
+                    C_2, C_2]
 
         ### For testing
         nb_loops = 10
@@ -290,12 +300,29 @@ for id_iter in range(nb_iter):
                 + (gamma*f_pp(tau)/(2*n*p)* (n_signed - factor*vec_prop).T 
                         + f_pp(tau)/(2*p) * R_n.T @ Delta.T @ J) @ t**2
 
+        ### own formulae
         expecs = factor * np.ones((k, 1))
         varis = np.zeros((k,1))
         y_list = np.array([1, 1, -1, -1])
         sens_list = np.array([0, 1, 0, 1])
 
+        ### For zhenyu's formulae
+        c2 = (cardinals[2] + cardinals[3])/n
+        c1 = (cardinals[0] + cardinals[1])/n
+        expecs_zh = (c2-c1)*np.ones((k,1))
+        varis_zh = np.zeros((k,1))
+        D_cal_zh = -2*f_p(tau)/p * np.linalg.norm(mu_list[0]-mu_list[2])**2 \
+                + f_pp(tau)/p**2 * np.trace(cov_list[0]-cov_list[2])**2 \
+                + 2*f_pp(tau)/p**2 * np.trace((cov_list[0]-cov_list[2]) @ (cov_list[0] - cov_list[2]))
+        expecs_zh[0] += -2*c2**2*c1 * D_cal_zh
+        expecs_zh[1] += -2*c2**2*c1 * D_cal_zh
+        expecs_zh[2] += 2*c1**2*c2 * D_cal_zh
+        expecs_zh[3] += 2*c1**2*c2 * D_cal_zh
+
         for a in range(k):
+            """
+            Formulae for fair LS-SVM
+            """
             ### Compute the expectations `E_a`
             mu_diff = np.stack([mu_list[b] - mu_list[a] for b in range(k)]).T
             tmp = (gamma*f_pp(tau)*t.T @ n_signed/(2*n*np.sqrt(p)) + n*alpha_n_3_2 * f_p(tau))* \
@@ -317,6 +344,14 @@ for id_iter in range(nb_iter):
                     + 2*gamma/n * (y_list[b] - factor)*(-1)**sens_list[b]*R_n_coef
                     ) *S[a,b] for b in range(k)]
             varis[a] += (2*f_p(tau))**2/p * np.sum(tmp)
+
+            """
+            For Zhenyu binary LS_SVM
+            """
+            nu_a1 = (f_pp(tau)/p**2)**2 * np.trace(cov_list[0] - cov_list[2])**2 * np.trace(cov_list[a]@cov_list[a])
+            nu_a2 = 2*f_p(tau)**2/p**2 * (mu_list[2] - mu_list[0]).T @ cov_list[a] @ (mu_list[2] - mu_list[0])
+            nu_a3 = 2*f_p(tau)**2/(n*p**2) * (np.trace(cov_list[0]@cov_list[a])/c1 + np.trace(cov_list[2]@cov_list[a]))
+            varis_zh[a] = 8*gamma**2 * c1**2 * c2**2 *(nu_a1 + nu_a2 + nu_a3)
 
 
         """
@@ -344,6 +379,7 @@ for id_iter in range(nb_iter):
                 X_test, y_test, sens_labels_test, ind_dict_test = gen_dataset(mu_list, cov_list, cardinals_test)
                 
                 assert g_fair.keys() == ind_dict_test.keys()
+                ### TODO: there is a sign issue, check where it is.
                 ### Compute raw predictions in $\R$
                 preds_fair = pred_function_fair(X_test)
                 preds_unfair = pred_function_unfair(X_test)
@@ -411,7 +447,7 @@ for id_iter in range(nb_iter):
             handles = [Rectangle((0, 0), 1,1,color=c) for c in ['blue', 'green', 'red', 'yellow']]
             labels=["Y = 1, A = 0", "Y = 1, A = 1", "Y = -1, A = 0", "Y = -1, A = 1"]
             fig.legend(handles, labels)
-            fig.savefig("results/distribs/test_py.pdf")
+            fig.savefig("results/distribs/zhenyu_setup_fair_formulae.pdf")
             plt.show()
 
 """
@@ -552,3 +588,4 @@ Debug approximations
 #    h_alpha_list = pk.load(open('results/alpha.pk', 'rb'))
 #    h_alpha_app_list = pk.load(open('results/alpha_app.pk', 'rb'))
 #    h_alpha_app2_list = pk.load(open('results/alpha_app2.pk', 'rb'))
+
