@@ -23,8 +23,9 @@ np.set_printoptions(threshold = 100)
 
 ### Some flags
 save_arr = False
-get_bk = True
-do_test = True
+get_bk = False
+do_test = False
+plot_test = False
 
 """
 We iterate over a high number of experiences to better evaluate the orders.
@@ -48,6 +49,7 @@ h_num_app_list = []
 h_denom_app_list = []
 h_num_diff_list = []
 h_denom_diff_list = []
+h_diff_expecs = []
 
 for id_iter in range(nb_iter):
     ### Set the seed for reproducibility
@@ -64,8 +66,12 @@ for id_iter in range(nb_iter):
     cov_scal = 1
     print("Experiment begin")
     print(f"cov_scal is {cov_scal}")
-    list_cardinals = [[32, 32, 96, 96]]
-    p_list = [512]
+    #list_cardinals = [[32, 32, 96, 96]]
+    #p_list = [512]
+    list_cardinals = [[32, 32, 96, 96], [64, 64, 192, 192]]
+    p_list = [512, 1024]
+    #list_cardinals = [[42, 22, 66, 116], [84, 44, 132, 232]]
+    #p_list = [512, 1024]
     #list_cardinals = [[150, 75, 75, 125], [300, 150, 150, 250], [600, 300, 300, 500]]
     #p_list = [256, 512, 1024]
     #list_cardinals = [[600, 300, 300, 500], [1200, 600, 600, 1000]]
@@ -159,11 +165,21 @@ for id_iter in range(nb_iter):
         n_signed = np.array([cardinals[0], cardinals[1], -cardinals[2], -cardinals[3]]).reshape((-1, 1))
         T = t.reshape((-1, 1)) @ ones_k.T + ones_k @ t.reshape((1, -1))
 
+        # Build the unfair objects
+        matrix_unfair = np.zeros((n+1, n+1))
+        matrix_unfair[0, 1:] = 1
+        matrix_unfair[1:, 0] = 1
+        matrix_unfair[1:, 1:] = K + n/gamma * np.eye(n)
+        rhs_unfair = np.concatenate([np.zeros(1), y])
+        sol_unfair = sp_linalg.solve(matrix_unfair, rhs_unfair)
+        b_unfair = sol_unfair[0]
+        alpha_unfair = sol_unfair[1:]
+
         ### Fair solution
         matrix_fair = build_system_matrix(X, sigma, gamma, cardinals, [1, 1], ind_dict, mode=mode)
         rhs_fair = np.concatenate([np.zeros(3), y])
         sol_fair = sp_linalg.solve(matrix_fair, rhs_fair)
-        # Build the fair decision function.
+        # Build the fair objects
         b = sol_fair[0]
         lambda_pos = sol_fair[1]
         lambda_neg = sol_fair[2]
@@ -178,17 +194,6 @@ for id_iter in range(nb_iter):
         A_22 = matrix_fair[1:, 1:]
         A_22_inv = np.linalg.inv(A_22)
         
-        matrix_unfair = np.zeros((n+1, n+1))
-        matrix_unfair[0, 1:] = 1
-        matrix_unfair[1:, 0] = 1
-        matrix_unfair[1:, 1:] = K + n/gamma * np.eye(n)
-        rhs_unfair = np.concatenate([np.zeros(1), y])
-        sol_unfair = sp_linalg.solve(matrix_unfair, rhs_unfair)
-        b_unfair = sol_unfair[0]
-        alpha_unfair = sol_unfair[1:]
-        # Build the fair decision function
-        pred_function_unfair = partial(decision_unfair, X, b_unfair, alpha_unfair, sigma)
-
         ### Generate approximators for control purposes.
         # Build V
         V = build_V(cardinals, mu_list, cov_list, J, W.T, M, t)
@@ -212,8 +217,7 @@ for id_iter in range(nb_iter):
     
         C_n = build_C_n(A_1, A_sqrt_n, A_n, tau, gamma, W.T)
         C_sqrt_n = build_C_sqrt_n(A_sqrt_n, A_n, tau, gamma)
-        #C_1 = build_C_1(A_n, tau, gamma)
-        C = C_n + C_sqrt_n #+ C_1
+        C = C_n + C_sqrt_n
         
         ## $B_{22}$ in the companion paper.
         #Om = K + n/gamma * np.eye(n)
@@ -270,16 +274,13 @@ for id_iter in range(nb_iter):
         ones_n = np.ones((n,1))
 
         ### Compute approximation of `b`
-        b_sqrt_n = gamma/(1+gamma*f(tau)) - 1/det_tilde_F_n_app*(gamma*f_p(tau)/(1+gamma*f(tau)))**2 * 1/p * t.T @ J.T @ Delta @ tilde_F_n_app @ Delta.T @ J @ t
+        b_sqrt_n = (1 + gamma*f(tau))/(gamma*f_p(tau)**2) * det_tilde_G_n + 1/p * t.T@J.T@Delta@tilde_G_n@Delta.T @ J @ t
         b_sqrt_n = 1/b_sqrt_n
         b_sqrt_n = b_sqrt_n * (
-                - 1 * (gamma*f_p(tau)/(1+gamma*f(tau)))**2 * 1/det_tilde_G_n* 1/np.sqrt(p) * t.T @ J.T @ Delta @ tilde_G_n @ (
-                2*ones_k.T @ n_signed /(n**2*p) * Delta.T @ J @ A_1_11 @ vec_prop - 2/(n*p) * Delta.T @ J @ (
-                    A_1_11 @ ((1+gamma*f(tau))* n_signed - gamma*f(tau)*ones_k.T @ n_signed/n * vec_prop) 
-                    + gamma*f_p(tau)/2 * t.T @ n_signed * t)
+                1/np.sqrt(p) * t.T @ J.T @ Delta @ tilde_G_n @ (
+                2*(1+gamma*f(tau))/(n*p) * Delta.T @ J @ A_1_11 @ (factor*vec_prop - n_signed) + gamma*f_p(tau)/2 * t.T @ n_signed * Delta.T @J@t)
+                - (1+gamma*f(tau))*det_tilde_G_n * t.T @ n_signed / (n*f_p(tau)*np.sqrt(p))
                 )
-                + 2*f_p(tau)/n**2 * ones_n.T @ L @ A_sqrt_n @ L @ y
-            )
         b_app = ones_k.T @ n_signed / n + b_sqrt_n
         
         ### Compute the expectations `E_a`
@@ -328,9 +329,9 @@ for id_iter in range(nb_iter):
             tmp = (gamma*f_pp(tau)*t.T @ n_signed/(2*n*np.sqrt(p)) + n*alpha_n_3_2 * f_p(tau))* \
                         np.trace(cov_list[a])/p
             D_cal_x = (gamma*f_p(tau)/(n*p)*(n_signed - factor*vec_prop).T + f_p(tau)/p * R_n.T @ Delta.T @ J)@mu_diff_dist[:, a] \
-                + 2*f_p(tau)/p*R_n.T @ Delta.T @ np.diag(np.repeat(mu_diff.T, vec_prop.flatten(), axis=0) @ W.T) \
                 + (2*gamma*f_pp(tau)/(n*p) * (n_signed - factor*vec_prop).T + 2*f_pp(tau)/p*R_n.T @ Delta.T @ J)@ S[:, a] \
                 + (gamma*f_pp(tau)/(2*n*p)* t.T @ n_signed + n*alpha_n_3_2 *f_p(tau)/np.sqrt(p))*t[a]
+            #expecs[a] += np.squeeze(D_cal + D_cal_x)
             expecs[a] += np.squeeze(tmp + D_cal + D_cal_x)
 
             ### Compute the variances `Var_a`
@@ -353,6 +354,8 @@ for id_iter in range(nb_iter):
             nu_a3 = 2*f_p(tau)**2/(n*p**2) * (np.trace(cov_list[0]@cov_list[a])/c1 + np.trace(cov_list[2]@cov_list[a]))
             varis_zh[a] = 8*gamma**2 * c1**2 * c2**2 *(nu_a1 + nu_a2 + nu_a3)
 
+
+        h_diff_expecs.append(np.copy(expecs_zh + expecs))
 
         """
         Classify new data after fitting the fair LS-SVM
@@ -413,42 +416,43 @@ for id_iter in range(nb_iter):
             ### Study the results
             means_exp = np.array([np.mean(g_fair[('pos', 0)].flatten()), 
                         np.mean(g_fair[('pos', 1)].flatten()),
-                        np.mean(g_fair[('pos', 0)].flatten()),
-                        np.mean(g_fair[('pos', 0)].flatten())])
+                        np.mean(g_fair[('neg', 0)].flatten()),
+                        np.mean(g_fair[('neg', 1)].flatten())])
 
             """
             ### Plot the results.
             """
 
-            ### Predictions distributions.
-            fig, axs = plt.subplots(2)
-            axs[0].hist(g_fair[('pos', 0)].flatten(), 100, facecolor='blue', alpha=0.4, density=True, stacked=True)
-            axs[0].hist(g_fair[('pos', 1)].flatten(), 100, facecolor='green', alpha=0.4, density=True, stacked=True)
-            axs[0].hist(g_fair[('neg', 0)].flatten(), 100, facecolor='red', alpha=0.4, density=True, stacked=True)
-            axs[0].hist(g_fair[('neg', 1)].flatten(), 100, facecolor='yellow', alpha=0.4, density=True, stacked=True)
-            axs[0].axvline(x=c1-c2, color='red')
-            axs[0].set_title("fair LS-SVM")
+            if plot_test:
+                ### Predictions distributions.
+                fig, axs = plt.subplots(2)
+                axs[0].hist(g_fair[('pos', 0)].flatten(), 100, facecolor='blue', alpha=0.4, density=True, stacked=True)
+                axs[0].hist(g_fair[('pos', 1)].flatten(), 100, facecolor='green', alpha=0.4, density=True, stacked=True)
+                axs[0].hist(g_fair[('neg', 0)].flatten(), 100, facecolor='red', alpha=0.4, density=True, stacked=True)
+                axs[0].hist(g_fair[('neg', 1)].flatten(), 100, facecolor='yellow', alpha=0.4, density=True, stacked=True)
+                axs[0].axvline(x=c1-c2, color='red')
+                axs[0].set_title("fair LS-SVM")
 
-            axs[1].hist(g_unfair[('pos', 0)].flatten(), 100, facecolor='blue', alpha=0.4, density=True, stacked=True)
-            axs[1].hist(g_unfair[('pos', 1)].flatten(), 100, facecolor='green', alpha=0.4, density=True, stacked=True)
-            axs[1].hist(g_unfair[('neg', 0)].flatten(), 100, facecolor='red', alpha=0.4, density=True, stacked=True)
-            axs[1].hist(g_unfair[('neg', 1)].flatten(), 100, facecolor='yellow', alpha=0.4, density=True, stacked=True)
-            axs[1].axvline(x=c1-c2, color='red')
-            axs[1].set_title("unfair LS-SVM")
-            
-            ### Associated theoretical gaussian
-            colors = ['b', 'g', 'r', 'y']
-            space = np.linspace(expecs[0] - 8*np.sqrt(varis[0]), expecs[0] + 8*np.sqrt(varis[0]), 300)
-            for a in range(k):
-                axs[0].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
-                axs[1].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
-            
-            # Create legend
-            handles = [Rectangle((0, 0), 1,1,color=c) for c in ['blue', 'green', 'red', 'yellow']]
-            labels=["Y = 1, A = 0", "Y = 1, A = 1", "Y = -1, A = 0", "Y = -1, A = 1"]
-            fig.legend(handles, labels)
-            fig.savefig("results/distribs/zhenyu_setup_fair_formulae.pdf")
-            plt.show()
+                axs[1].hist(g_unfair[('pos', 0)].flatten(), 100, facecolor='blue', alpha=0.4, density=True, stacked=True)
+                axs[1].hist(g_unfair[('pos', 1)].flatten(), 100, facecolor='green', alpha=0.4, density=True, stacked=True)
+                axs[1].hist(g_unfair[('neg', 0)].flatten(), 100, facecolor='red', alpha=0.4, density=True, stacked=True)
+                axs[1].hist(g_unfair[('neg', 1)].flatten(), 100, facecolor='yellow', alpha=0.4, density=True, stacked=True)
+                axs[1].axvline(x=c1-c2, color='red')
+                axs[1].set_title("unfair LS-SVM")
+                
+                ### Associated theoretical gaussian
+                colors = ['b', 'g', 'r', 'y']
+                space = np.linspace(expecs[0] - 8*np.sqrt(varis[0]), expecs[0] + 8*np.sqrt(varis[0]), 300)
+                for a in range(k):
+                    axs[0].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
+                    axs[1].plot(space, stats.norm.pdf(space, - expecs_zh[a], np.sqrt(varis_zh[a])), color=colors[a])
+                
+                # Create legend
+                handles = [Rectangle((0, 0), 1,1,color=c) for c in ['blue', 'green', 'red', 'yellow']]
+                labels=["Y = 1, A = 0", "Y = 1, A = 1", "Y = -1, A = 0", "Y = -1, A = 1"]
+                fig.legend(handles, labels)
+                fig.savefig("results/distribs/zhenyu_setup_fair_formulae.pdf")
+                plt.show()
 
 """
 Debug approximations
