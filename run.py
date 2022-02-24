@@ -22,7 +22,7 @@ from tools import f, f_p, f_pp, build_objects
 np.set_printoptions(threshold = 100)
 
 ### Some flags
-save_arr = True
+save_arr = False
 get_bk = False
 do_test = False
 plot_test = False
@@ -30,7 +30,7 @@ plot_test = False
 """
 We iterate over a high number of experiences to better evaluate the orders.
 """
-nb_iter = 150
+nb_iter = 100
 h_lambdas_list = []
 h_b_list = []
 h_alpha_list = []
@@ -143,13 +143,13 @@ for id_iter in range(nb_iter):
         #            cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
 
         ### Zhenyu setup (only two classes)
-        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
-                   mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
+        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
+                   mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
         col = np.array([0.4**l for l in range(p)])
         C_2 = (1+5/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
-        #cov_list = [np.eye(p), np.eye(p),
-        #            C_2, C_2]
-        cov_list = [np.eye(p), C_2, np.eye(p), C_2]
+        cov_list = [np.eye(p), np.eye(p),
+                    C_2, C_2]
+        #cov_list = [np.eye(p), C_2, np.eye(p), C_2]
 
         ### For testing
         nb_loops = 10
@@ -290,10 +290,10 @@ for id_iter in range(nb_iter):
 
         ### Compute approximation of $\lambda_1, \lambda_{-1}$
         # Build the R_n vector
-        R_n = - gamma*f_p(tau)/det_tilde_G_n * tilde_G_n @ (
-                2/(n*p) * tilde_G_n @ Delta.T @ J @ A_1_11 @ (n_signed - factor* vec_prop)
-                + (gamma*f_p(tau)*t.T @ n_signed/(n*p) + b_sqrt_n/np.sqrt(p)) * Delta.T @ J @ t
-                )
+        R_n = 1/det_tilde_G_n * tilde_G_n @ (gamma*f_p(tau)/(1+gamma*f(tau)) *
+                (2/(n*p) * (1+gamma*f(tau))* Delta.T @ J @ A_1_11 @
+                    (factor*vec_prop - n_signed) - gamma*f_p(tau)/(n*p) * t.T @
+                    n_signed * Delta.T @ J @ t - b_sqrt_n/np.sqrt(p) * Delta.T @ J @ t))
         print(f"R_n is {R_n}")
         
         ### Compute approximation of `alpha`
