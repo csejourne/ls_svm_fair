@@ -22,7 +22,7 @@ from tools import f, f_p, f_pp, build_objects
 np.set_printoptions(threshold = 100)
 
 ### Some flags
-save_arr = False
+save_arr = True
 get_bk = False
 do_test = False
 plot_test = False
@@ -30,7 +30,7 @@ plot_test = False
 """
 We iterate over a high number of experiences to better evaluate the orders.
 """
-nb_iter = 1
+nb_iter = 150
 h_lambdas_list = []
 h_b_list = []
 h_alpha_list = []
@@ -39,7 +39,9 @@ h_alpha_diff_list = []
 h_alpha_stds = []
 h_lambdas_list = []
 h_lambdas_app_list = []
+h_lambdas_app2_list = []
 h_lambdas_diff_list = []
+h_lambdas_diff2_list = []
 h_b_list = []
 h_b_app_list = []
 h_b_diff_list = []
@@ -71,8 +73,8 @@ for id_iter in range(nb_iter):
     #p_list = [512]
     #list_cardinals = [[16, 16, 48, 48], [32, 32, 96, 96], [64, 64, 192, 192]]
     #p_list = [256, 512, 1024]
-    list_cardinals = [[42, 22, 66, 116], [84, 44, 132, 232]]
-    p_list = [512, 1024]
+    list_cardinals = [[21, 11, 33, 58], [42, 22, 66, 116], [84, 44, 132, 232]]
+    p_list = [256, 512, 1024]
     #list_cardinals = [[150, 75, 75, 125], [300, 150, 150, 250], [600, 300, 300, 500]]
     #p_list = [256, 512, 1024]
     #list_cardinals = [[600, 300, 300, 500], [1200, 600, 600, 1000]]
@@ -104,7 +106,9 @@ for id_iter in range(nb_iter):
     alpha_diff_list = []
     lambdas_list = []
     lambdas_app_list = []
+    lambdas_app2_list = []
     lambdas_diff_list = []
+    lambdas_diff2_list = []
     b_list = np.array([])
     b_app_list = np.array([])
     b_diff_list = np.array([])
@@ -139,8 +143,8 @@ for id_iter in range(nb_iter):
         #            cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
 
         ### Zhenyu setup (only two classes)
-        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
-                   mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
+        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
+                   mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
         col = np.array([0.4**l for l in range(p)])
         C_2 = (1+5/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
         #cov_list = [np.eye(p), np.eye(p),
@@ -154,7 +158,7 @@ for id_iter in range(nb_iter):
         
         # Generate data.
         X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
-        Y = np.concatenate([np.zeros(2), y])
+        Y = np.concatenate([np.zeros(2), y]).reshape((-1, 1))
         assert (n, p) == X.shape
         W = extract_W(X, mu_list, cardinals)
         K = get_gaussian_kernel(X, sigma)
@@ -262,12 +266,17 @@ for id_iter in range(nb_iter):
                 ]
         F_n = build_F_n(Delta, E_app)
         tilde_F_n_app = build_tilde_F_n(Delta, E_app)
-        
         tilde_G_n = build_tilde_F_n(Delta, mat_n)
         tilde_G_sqrt_n = build_tilde_F_n(Delta, mat_sqrt_n)
         det_tilde_G_n = np.linalg.det(tilde_G_n)
         det_tilde_F_n_app = np.linalg.det(tilde_F_n_app)
         factor = ones_k.T @ n_signed / n
+
+        ### Compute approximation of A_22_inv
+        A_22_inv_app = np.zeros((n+2, n+2))
+        A_22_inv_app[:2, :2] = F_n
+        A_22_inv_app[:2, 2:] = F_n @ Delta.T @ (C_sqrt_n + C_n)
+        A_22_inv_app[2:, :2] = (C_sqrt_n + C_n).T @ Delta @ F_n
 
         ### Compute approximation of `b`
         b_sqrt_n = (1 + gamma*f(tau))/(gamma*f_p(tau)**2) * det_tilde_G_n + 1/p * t.T@J.T@Delta@tilde_G_n@Delta.T @ J @ t
@@ -281,10 +290,11 @@ for id_iter in range(nb_iter):
 
         ### Compute approximation of $\lambda_1, \lambda_{-1}$
         # Build the R_n vector
-        R_n = gamma*f_p(tau)/det_tilde_G_n * tilde_G_n @ (
+        R_n = - gamma*f_p(tau)/det_tilde_G_n * tilde_G_n @ (
                 2/(n*p) * tilde_G_n @ Delta.T @ J @ A_1_11 @ (n_signed - factor* vec_prop)
                 + (gamma*f_p(tau)*t.T @ n_signed/(n*p) + b_sqrt_n/np.sqrt(p)) * Delta.T @ J @ t
                 )
+        print(f"R_n is {R_n}")
         
         ### Compute approximation of `alpha`
         alpha_n_3_2 = - ( gamma/n * b_sqrt_n * 1/(1+gamma*f(tau))
@@ -372,8 +382,11 @@ for id_iter in range(nb_iter):
         alpha_app_list.append(np.copy(alpha_app))
         alpha_diff_list.append(np.copy(alpha - alpha_app))
         lambdas_list.append(np.array([lambda_pos, lambda_neg]))
-        lambdas_app_list.append(np.copy(R_n))
-        lambdas_diff_list.append(np.array([lambda_pos, lambda_neg]) - R_n)
+        lambdas_app_list.append(np.copy(np.squeeze(R_n)))
+        lambdas_app2_list.append(np.squeeze(- F_n @ Delta.T @ (C_sqrt_n + C_n) @ (y-b*ones_n)))
+        lambdas_diff_list.append(np.array([lambda_pos, lambda_neg]) - np.squeeze(R_n))
+        lambdas_diff2_list.append(np.array([lambda_pos, lambda_neg]) - np.squeeze(F_n @ Delta.T @ (C_sqrt_n + C_n) @ (y-b*ones_n)))
+
     
 
         """
@@ -478,7 +491,9 @@ for id_iter in range(nb_iter):
     h_b_diff_list.append(b_diff_list)
     h_lambdas_list.append(lambdas_list)
     h_lambdas_app_list.append(lambdas_app_list)
+    h_lambdas_app2_list.append(lambdas_app2_list)
     h_lambdas_diff_list.append(lambdas_diff_list)
+    h_lambdas_diff2_list.append(lambdas_diff2_list)
 
     # Build the standard deviation of the coefficient of `alpha`
     alpha_stds = []
@@ -486,3 +501,33 @@ for id_iter in range(nb_iter):
         idxs = cumsum_cardinals[a]
         alpha_stds.append(np.array([np.std(alpha_diff_list[a][idxs[i-1]:idxs[i]]) for i in range(1, len(idxs))]))
     h_alpha_stds.append(alpha_stds)
+
+diff_lambdas_pos = np.array([np.array([h_lambdas_diff_list[i][a][0] for a in range(len(p_list))]) for i in range(nb_iter)])
+diff_lambdas_neg = np.array([np.array([h_lambdas_diff_list[i][a][1] for a in range(len(p_list))]) for i in range(nb_iter)])
+vals_lambdas_pos = np.array([np.array([h_lambdas_list[i][a][0] for a in range(len(p_list))]) for i in range(nb_iter)])
+vals_lambdas_neg = np.array([np.array([h_lambdas_list[i][a][1] for a in range(len(p_list))]) for i in range(nb_iter)])
+h_pos_diff = np.array([np.array([h_lambdas_diff_list[i][a][0] for a in range(len(p_list))]) for i in range(nb_iter)]) 
+h_neg_diff = np.array([np.array([h_lambdas_diff_list[i][a][1] for a in range(len(p_list))]) for i in range(nb_iter)]) 
+h_pos_diff2 = np.array([np.array([h_lambdas_diff2_list[i][a][0] for a in range(len(p_list))]) for i in range(nb_iter)]) 
+h_neg_diff2 = np.array([np.array([h_lambdas_diff2_list[i][a][1] for a in range(len(p_list))]) for i in range(nb_iter)]) 
+
+if save_arr:
+    with open("results/h_lambdas_list.pk", "wb") as f:
+        pk.dump(h_lambdas_list, f)
+    with open("results/h_lambdas_diff_list.pk", "wb") as f:
+        pk.dump(h_lambdas_diff_list, f)
+    with open("results/h_lambdas_diff2_list.pk", "wb") as f:
+        pk.dump(h_lambdas_diff2_list, f)
+    with open("results/h_lambdas_app_list.pk", "wb") as f:
+        pk.dump(h_lambdas_app_list, f)
+    with open("results/h_lambdas_app2_list.pk", "wb") as f:
+        pk.dump(h_lambdas_app2_list, f)
+
+    with open("results/diff_lambdas_pos.pk", "wb") as f:
+        pk.dump(diff_lambdas_pos, f)
+    with open("results/diff_lambdas_neg.pk", "wb") as f:
+        pk.dump(diff_lambdas_neg, f)
+    with open("results/vals_lambdas_pos.pk", "wb") as f:
+        pk.dump(vals_lambdas_pos, f)
+    with open("results/vals_lambdas_neg.pk", "wb") as f:
+        pk.dump(vals_lambdas_neg, f)
