@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.random as rng
 from scipy.spatial.distance import pdist, squareform, cdist
+from scipy.special import erfc
 from sklearn import metrics
 
 
@@ -642,5 +643,22 @@ def build_tilde_F_n(Delta, E_app):
     tilde_F_n = np.array([[a11, a12], [a21, a22]])
     return tilde_F_n
 
-""" For debugging purposes
-"""
+def missclass_errors_theo(expecs, varis, thresh):
+    """
+    The parameters in the arrays should be ordered as follow: (1, 0), (1, 1), (-1, 0), (-1, 1)
+    Args:
+        expecs: array of k x 1
+        varis: array of k x 1
+        thresh: float
+    returns:
+        errors: array of k x 1
+    """
+    assert expecs.shape == varis.shape
+    tmp = np.zeros(expecs.shape) 
+    tmp[0] = (expecs[0] - thresh)/np.sqrt(varis[0])
+    tmp[1] = (expecs[1] - thresh)/np.sqrt(varis[1])
+    tmp[2] = (thresh - expecs[2])/np.sqrt(varis[2])
+    tmp[3] = (thresh - expecs[3])/np.sqrt(varis[3])
+    errors = 1/2 * erfc(tmp/np.sqrt(2))
+
+    return errors
