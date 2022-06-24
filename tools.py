@@ -439,6 +439,23 @@ def build_V(cardinals, mu_list, cov_list, J, W, M, t):
 
     return V
 
+#def build_k_x_app(X, tau, mu_list, cov_list, cardinals):
+#    """ Compute the approximation of kernel
+#    Args:
+#        X: (n x p array)
+#        tau: float
+#        mu_list: (list of 1d array)
+#        cov_list: (list of 2d array) (p,p)
+#        cardinals: (list of int or 1d array) 
+#    returns:
+#        k_x_app
+#    """
+#    W = extract_W(X, mu_list, cardinals)
+#    expec = [np.tile(np.trace(cov_list[i]), [cardinals[i], 1]) for i in range(k)]
+#    expec = np.concatenate(expec)
+#    psi = np.diag(W.T @ W).reshape((-1, 1))
+#    psi = 1/p *(psi - expec)
+
 def build_A_n(tau, k, p, V):
     """
     Args:
@@ -624,3 +641,6 @@ def build_tilde_F_n(Delta, E_app):
     a22 = float(Delta_pos.T @ E_app @ Delta_pos)
     tilde_F_n = np.array([[a11, a12], [a21, a22]])
     return tilde_F_n
+
+""" For debugging purposes
+"""

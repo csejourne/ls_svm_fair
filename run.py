@@ -9,7 +9,7 @@ from matplotlib.patches import Rectangle
 from config import Config
 from pathlib import Path
 from functools import partial
-from scipy.spatial.distance import pdist, squareform
+from scipy.spatial.distance import cdist, pdist, squareform
 from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, build_A_1_11, \
                 build_C_1, build_C_sqrt_n, build_C_n, build_D_1, build_D_sqrt_n, \
                 build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
@@ -23,16 +23,21 @@ np.set_printoptions(threshold = 100)
 
 ### Some flags
 save_arr = False
-save_arr_test = True
+save_arr_test = False
 get_arr = False
 get_bk = False
 do_test = True
-plot_test = False
+plot_test = True
 
 """
 We iterate over a high number of experiences to better evaluate the orders.
 """
 nb_iter = 1
+nb_loops = 50
+cardinals_test = [1000, 1000, 1000, 1000]
+n_test = sum(cardinals_test)
+
+### Lists for debuggin purposes
 h_lambdas_list = []
 h_b_list = []
 h_alpha_list = []
@@ -56,6 +61,8 @@ h_denom_diff_list = []
 h_expecs_list = []
 h_means_exp_list = []
 h_diff_means_list = []
+h_means_exp_app_list = []
+h_diff_means_app_list = []
 
 for id_iter in range(nb_iter):
     print(f"iter {id_iter + 1}/{nb_iter}")
@@ -69,7 +76,7 @@ for id_iter in range(nb_iter):
     ### Hyperparameters
     mode = "strict"
     gamma = 1
-    mean_scal = 5
+    mean_scal = 3
     cov_scal = 1
     print("Experiment begin")
     #print(f"cov_scal is {cov_scal}")
@@ -77,8 +84,10 @@ for id_iter in range(nb_iter):
     #p_list = [512]
     #list_cardinals = [[16, 16, 48, 48], [32, 32, 96, 96], [64, 64, 192, 192]]
     #p_list = [256, 512, 1024]
-    list_cardinals = [[21, 11, 33, 58], [42, 22, 66, 116], [84, 44, 132, 232]]
-    p_list = [256, 512, 1024]
+    #list_cardinals = [[21, 11, 33, 58], [42, 22, 66, 116], [84, 44, 132, 232]]
+    #p_list = [256, 512, 1024]
+    list_cardinals = [[21, 11, 33, 58], [42, 22, 66, 116]]
+    p_list = [256, 512]
     #list_cardinals = [[42, 22, 66, 116]]
     #p_list = [512]
     #list_cardinals = [[150, 75, 75, 125], [300, 150, 150, 250], [600, 300, 300, 500]]
@@ -133,6 +142,8 @@ for id_iter in range(nb_iter):
         expecs_list = []
         means_exp_list = []
         diff_means_list = []
+        means_exp_app_list = []
+        diff_means_app_list = []
 
         # Class distribution
         cardinals = list_cardinals[i]
@@ -144,32 +155,25 @@ for id_iter in range(nb_iter):
         sigma=p
 
         ### Fairness setup
-        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
-        #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
+        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
+                   mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
         #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
+        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
+        #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
+
         #cov_list = [cov_scal*np.eye(p),  cov_scal*np.eye(p),
         #            (1+2/np.sqrt(p)) * cov_scal*np.eye(p),  (1+2/np.sqrt(p)) * cov_scal*np.eye(p)]
         #cov_list = [cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p),
         #            cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
-
-        ### Zhenyu setup (only two classes)
-        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
-                   mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
+        # covariances from zhenyu's paper
         col = np.array([0.4**l for l in range(p)])
         C_2 = (1+5/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
-        #cov_list = [np.eye(p), np.eye(p),
-        #            C_2, C_2]
-        cov_list = [np.eye(p), C_2, np.eye(p), C_2]
-
-        ### For testing
-        nb_loops = 200
-        cardinals_test = [1000, 1000, 1000, 1000]
-        n_test = sum(cardinals_test)
+        cov_list = [np.eye(p), np.eye(p), C_2, C_2]
+        #cov_list = [np.eye(p), C_2, np.eye(p), C_2]
         
         # Generate data.
         X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
-        Y = np.concatenate([np.zeros(2), y]).reshape((-1, 1))
         assert (n, p) == X.shape
         W = extract_W(X, mu_list, cardinals)
         K = get_gaussian_kernel(X, sigma)
@@ -300,9 +304,11 @@ for id_iter in range(nb_iter):
         ### Compute approximation of $\lambda_1, \lambda_{-1}$
         # Build the R_n vector
         R_n = 1/det_tilde_G_n * tilde_G_n @ (gamma*f_p(tau)/(1+gamma*f(tau)) *
-                (2/(n*p) * (1+gamma*f(tau))* Delta.T @ J @ A_1_11 @
-                    (factor*vec_prop - n_signed) - gamma*f_p(tau)/(n*p) * t.T @
-                    n_signed * Delta.T @ J @ t - b_sqrt_n/np.sqrt(p) * Delta.T @ J @ t))
+                (
+                2/(n*p) * (1+gamma*f(tau))* Delta.T @ J @ A_1_11 @ (factor*vec_prop - n_signed) 
+                - gamma*f_p(tau)/(n*p) * t.T @ n_signed * Delta.T @ J @ t 
+                - b_sqrt_n/np.sqrt(p) * Delta.T @ J @ t)
+                )
         
         ### Compute approximation of `alpha`
         alpha_n_3_2 = -(gamma*b_sqrt_n*1/(1+gamma*f(tau))*1/n 
@@ -319,7 +325,10 @@ for id_iter in range(nb_iter):
                         + f_pp(tau)/(2*p) * R_n.T @ Delta.T @ J) @ t**2
 
         ### own formulae
-        expecs = factor * np.ones((k, 1))
+        expecs = factor * np.ones((k, 1)) \
+                + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed \
+                + b_sqrt_n \
+                + n*alpha_n_3_2*f(tau)
         varis = np.zeros((k,1))
         y_list = np.array([1, 1, -1, -1])
         sens_list = np.array([0, 1, 0, 1])
@@ -397,40 +406,37 @@ for id_iter in range(nb_iter):
         if do_test:
             print("Doing test")
             pred_function_fair = partial(decision_fair, X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict)
+            pred_function_fair_app = partial(decision_fair, X, b_app, R_n[0,0], R_n[1,0], alpha_app, sigma, ind_dict)
             pred_function_unfair = partial(decision_unfair, X, b_unfair, alpha_unfair, sigma)
-            ### For storing results
-            g_unfair = {}
-            g_unfair[("pos", 0)] = np.zeros((nb_loops, cardinals_test[0]))
-            g_unfair[("pos", 1)] = np.zeros((nb_loops, cardinals_test[1]))
-            g_unfair[("neg", 0)] = np.zeros((nb_loops, cardinals_test[2]))
-            g_unfair[("neg", 1)] = np.zeros((nb_loops, cardinals_test[3]))
-
-            g_fair = {}
-            g_fair[("pos", 0)] = np.zeros((nb_loops, cardinals_test[0]))
-            g_fair[("pos", 1)] = np.zeros((nb_loops, cardinals_test[1]))
-            g_fair[("neg", 0)] = np.zeros((nb_loops, cardinals_test[2]))
-            g_fair[("neg", 1)] = np.zeros((nb_loops, cardinals_test[3]))
             
             for loop in range(nb_loops):
+                print(f"\t test {(loop+1)/nb_loops}")
                 ### For storing results
+                g_fair = {}
+                g_fair[("pos", 0)] = np.zeros(cardinals_test[0])
+                g_fair[("pos", 1)] = np.zeros(cardinals_test[1])
+                g_fair[("neg", 0)] = np.zeros(cardinals_test[2])
+                g_fair[("neg", 1)] = np.zeros(cardinals_test[3])
+
+                g_fair_app = {}
+                g_fair_app[("pos", 0)] = np.zeros(cardinals_test[0])
+                g_fair_app[("pos", 1)] = np.zeros(cardinals_test[1])
+                g_fair_app[("neg", 0)] = np.zeros(cardinals_test[2])
+                g_fair_app[("neg", 1)] = np.zeros(cardinals_test[3])
+
                 g_unfair = {}
                 g_unfair[("pos", 0)] = np.zeros(cardinals_test[0])
                 g_unfair[("pos", 1)] = np.zeros(cardinals_test[1])
                 g_unfair[("neg", 0)] = np.zeros(cardinals_test[2])
                 g_unfair[("neg", 1)] = np.zeros(cardinals_test[3])
 
-                g_fair = {}
-                g_fair[("pos", 0)] = np.zeros(cardinals_test[0])
-                g_fair[("pos", 1)] = np.zeros(cardinals_test[1])
-                g_fair[("neg", 0)] = np.zeros(cardinals_test[2])
-                g_fair[("neg", 1)] = np.zeros(cardinals_test[3])
                 ### Generate test dataset
                 X_test, y_test, sens_labels_test, ind_dict_test = gen_dataset(mu_list, cov_list, cardinals_test)
-                
+
                 assert g_fair.keys() == ind_dict_test.keys()
-                ### TODO: there is a sign issue, check where it is.
                 ### Compute raw predictions in $\R$
                 preds_fair = pred_function_fair(X_test)
+                preds_fair_app = pred_function_fair_app(X_test)
                 preds_unfair = pred_function_unfair(X_test)
                 c2 = (cardinals[2] + cardinals[3])/n
                 c1 = (cardinals[0] + cardinals[1])/n
@@ -438,64 +444,71 @@ for id_iter in range(nb_iter):
                 ### Extract the predictions for each subclass for plotting use later.
                 for key in ind_dict.keys():
                     inds = np.nonzero(np.squeeze(ind_dict_test[key])) 
-                    #g_fair[key][loop, :] = preds_fair[inds]
                     g_fair[key] = preds_fair[inds]
-                
-                ### Extract the predictions for each subclass for plotting use later.
-                for key in ind_dict.keys():
-                    inds = np.nonzero(np.squeeze(ind_dict_test[key])) 
-                    #g_unfair[key][loop, :] = preds_unfair[inds]
+                    g_fair_app[key] = preds_fair_app[inds]
                     g_unfair[key] = preds_unfair[inds]
+                
 
                 ### Remove threshold like Zhenyu
                 preds_fair = preds_fair - (c1 - c2) # remove threshold
+                preds_fair_app = preds_fair_app - (c1 - c2) # remove threshold
                 preds_unfair = preds_unfair - (c1 - c2) # remove threshold
                 
                 ### Compare how well both predictions function satisfy fairness properties.
+                results_fair = get_metrics(preds_fair, y_test, ind_dict_test)
+                results_unfair = get_metrics(preds_unfair, y_test, ind_dict_test)
                 pos_const_fair, neg_const_fair = comp_fairness_constraints(preds_fair, ind_dict_test)
                 pos_const_fair_int, neg_const_fair_int = comp_fairness_constraints(preds_fair, ind_dict_test, with_int=True)
                 #print(f"FAIR: pos {pos_const_fair}, neg {neg_const_fair}")
                 #print(f"FAIR with int: pos {pos_const_fair_int}, neg {neg_const_fair_int}\n")
                 
-                results_fair = get_metrics(preds_fair, y_test, ind_dict_test)
-                results_unfair = get_metrics(preds_unfair, y_test, ind_dict_test)
 
                 ### Study the results
                 means_exp = np.array([np.mean(g_fair[('pos', 0)].flatten()), 
                             np.mean(g_fair[('pos', 1)].flatten()),
                             np.mean(g_fair[('neg', 0)].flatten()),
                             np.mean(g_fair[('neg', 1)].flatten())])
+                means_exp_app = np.array([np.mean(g_fair_app[('pos', 0)].flatten()), 
+                            np.mean(g_fair_app[('pos', 1)].flatten()),
+                            np.mean(g_fair_app[('neg', 0)].flatten()),
+                            np.mean(g_fair_app[('neg', 1)].flatten())])
                 diff_means_list.append(np.copy(np.squeeze(expecs) - means_exp))
+                diff_means_app_list.append(np.copy(np.squeeze(expecs) - means_exp_app))
                 means_exp_list.append(np.copy(means_exp))
+                means_exp_app_list.append(np.copy(means_exp_app))
                 expecs_list.append(np.copy(np.squeeze(expecs)))
-                #print("in test, expecs is : ", expecs_list[-1])
-                #print("g_fair_pos_0 is: ", g_fair[('pos', 0)].shape)
-                #print("means_exp is: ", means_exp)
-                #print("expecs is: ", np.squeeze(means_exp))
-                #print(np.squeeze(expecs) - means_exp)
 
-            h_diff_means_list.append(np.copy(np.array(diff_means_list)))
-            h_means_exp_list.append(np.copy(np.array(means_exp_list)))
-            h_expecs_list.append(np.copy(np.array(expecs_list)))
+            h_diff_means_list.append(np.mean(np.array(diff_means_list), axis=0))
+            h_means_exp_list.append(np.mean(np.array(means_exp_list), axis=0))
+            h_diff_means_app_list.append(np.mean(np.array(diff_means_app_list), axis=0))
+            h_means_exp_app_list.append(np.mean(np.array(means_exp_app_list), axis=0))
+            h_expecs_list.append(np.mean(np.array(expecs_list), axis=0))
 
+            """ Plot the results.
             """
-            ### Plot the results.
-            """
-            #diff_means.append(np.copy(np.squeeze(expecs) - means_exp))
+            hists = {}
             if plot_test:
                 ### Predictions distributions.
                 fig, axs = plt.subplots(2)
-                axs[0].hist(g_fair[('pos', 0)].flatten(), 100, facecolor='blue', alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[0].hist(g_fair[('pos', 1)].flatten(), 100, facecolor='green', alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[0].hist(g_fair[('neg', 0)].flatten(), 100, facecolor='red', alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[0].hist(g_fair[('neg', 1)].flatten(), 100, facecolor='yellow', alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                hists[('pos', 0)] = axs[0].hist(g_fair[('pos', 0)].flatten(), 50, facecolor='blue',
+                                alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                hists[('pos', 1)] = axs[0].hist(g_fair[('pos', 1)].flatten(), 50, facecolor='green',
+                                alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                hists[('neg', 0)] = axs[0].hist(g_fair[('neg', 0)].flatten(), 50, facecolor='red',
+                                alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                hists[('neg', 1)] = axs[0].hist(g_fair[('neg', 1)].flatten(), 50, facecolor='yellow',
+                                alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 axs[0].axvline(x=c1-c2, color='red')
                 axs[0].set_title("fair LS-SVM")
 
-                axs[1].hist(g_unfair[('pos', 0)].flatten(), 100, facecolor='blue', alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[1].hist(g_unfair[('pos', 1)].flatten(), 100, facecolor='green', alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[1].hist(g_unfair[('neg', 0)].flatten(), 100, facecolor='red', alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[1].hist(g_unfair[('neg', 1)].flatten(), 100, facecolor='yellow', alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                axs[1].hist(g_unfair[('pos', 0)].flatten(), 50, facecolor='blue', alpha=0.4,
+                                density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                axs[1].hist(g_unfair[('pos', 1)].flatten(), 50, facecolor='green', alpha=0.4,
+                                density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                axs[1].hist(g_unfair[('neg', 0)].flatten(), 50, facecolor='red', alpha=0.4,
+                                density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                axs[1].hist(g_unfair[('neg', 1)].flatten(), 50, facecolor='yellow', alpha=0.4,
+                                density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 axs[1].axvline(x=c1-c2, color='red')
                 axs[1].set_title("unfair LS-SVM")
                 
@@ -532,64 +545,53 @@ for id_iter in range(nb_iter):
         alpha_stds.append(np.array([np.std(alpha_diff_list[a][idxs[i-1]:idxs[i]]) for i in range(1, len(idxs))]))
     h_alpha_stds.append(alpha_stds)
 
-diff_lambdas_pos = np.array([np.array([h_lambdas_diff_list[i][a][0] for a in range(len(p_list))]) for i in range(nb_iter)])
-diff_lambdas_neg = np.array([np.array([h_lambdas_diff_list[i][a][1] for a in range(len(p_list))]) for i in range(nb_iter)])
-vals_lambdas_pos = np.array([np.array([h_lambdas_list[i][a][0] for a in range(len(p_list))]) for i in range(nb_iter)])
-vals_lambdas_neg = np.array([np.array([h_lambdas_list[i][a][1] for a in range(len(p_list))]) for i in range(nb_iter)])
-h_pos_diff = np.array([np.array([h_lambdas_diff_list[i][a][0] for a in range(len(p_list))]) for i in range(nb_iter)]) 
-h_neg_diff = np.array([np.array([h_lambdas_diff_list[i][a][1] for a in range(len(p_list))]) for i in range(nb_iter)]) 
-h_pos_diff2 = np.array([np.array([h_lambdas_diff2_list[i][a][0] for a in range(len(p_list))]) for i in range(nb_iter)]) 
-h_neg_diff2 = np.array([np.array([h_lambdas_diff2_list[i][a][1] for a in range(len(p_list))]) for i in range(nb_iter)]) 
-
 if save_arr_test:
     print("Saving test arrays")
-    with open("results/h_diff_means_list.pk", "wb") as f:
-        pk.dump(h_diff_means_list, f)
-    with open("results/h_means_exp_list.pk", "wb") as f:
-        pk.dump(h_means_exp_list, f)
-    with open("results/h_expecs_list.pk", "wb") as f:
-        pk.dump(h_expecs_list, f)
+    with open("results/h_diff_means_list.pk", "wb") as fi:
+        pk.dump(h_diff_means_list, fi)
+    with open("results/h_means_exp_list.pk", "wb") as fi:
+        pk.dump(h_means_exp_list, fi)
+    with open("results/h_expecs_list.pk", "wb") as fi:
+        pk.dump(h_expecs_list, fi)
 
 if save_arr:
-    with open("results/h_lambdas_list.pk", "wb") as f:
-        pk.dump(h_lambdas_list, f)
-    with open("results/h_lambdas_diff_list.pk", "wb") as f:
-        pk.dump(h_lambdas_diff_list, f)
-    with open("results/h_lambdas_diff2_list.pk", "wb") as f:
-        pk.dump(h_lambdas_diff2_list, f)
-    with open("results/h_lambdas_app_list.pk", "wb") as f:
-        pk.dump(h_lambdas_app_list, f)
-    with open("results/h_lambdas_app2_list.pk", "wb") as f:
-        pk.dump(h_lambdas_app2_list, f)
+    with open("results/h_lambdas_list.pk", "wb") as fi:
+        pk.dump(h_lambdas_list, fi)
+    with open("results/h_lambdas_diff_list.pk", "wb") as fi:
+        pk.dump(h_lambdas_diff_list, fi)
+    with open("results/h_lambdas_diff2_list.pk", "wb") as fi:
+        pk.dump(h_lambdas_diff2_list, fi)
+    with open("results/h_lambdas_app_list.pk", "wb") as fi:
+        pk.dump(h_lambdas_app_list, fi)
+    with open("results/h_lambdas_app2_list.pk", "wb") as fi:
+        pk.dump(h_lambdas_app2_list, fi)
 
-    with open("results/diff_lambdas_pos.pk", "wb") as f:
-        pk.dump(diff_lambdas_pos, f)
-    with open("results/diff_lambdas_neg.pk", "wb") as f:
-        pk.dump(diff_lambdas_neg, f)
-    with open("results/vals_lambdas_pos.pk", "wb") as f:
-        pk.dump(vals_lambdas_pos, f)
-    with open("results/vals_lambdas_neg.pk", "wb") as f:
-        pk.dump(vals_lambdas_neg, f)
+    with open("results/diff_lambdas_pos.pk", "wb") as fi:
+        pk.dump(diff_lambdas_pos, fi)
+    with open("results/diff_lambdas_neg.pk", "wb") as fi:
+        pk.dump(diff_lambdas_neg, fi)
+    with open("results/vals_lambdas_pos.pk", "wb") as fi:
+        pk.dump(vals_lambdas_pos, fi)
+    with open("results/vals_lambdas_neg.pk", "wb") as fi:
+        pk.dump(vals_lambdas_neg, fi)
 
 if get_arr:
-    with open("results/h_lambdas_list.pk", "wb") as f:
-        h_lambdas_list = pk.load(f)
-    with open("results/h_lambdas_diff_list.pk", "wb") as f:
-        h_lambdas_diff_list = pk.load(f)
-    with open("results/h_lambdas_diff2_list.pk", "wb") as f:
-        h_lambdas_diff2_list = pk.load(f)
-    with open("results/h_lambdas_app_list.pk", "wb") as f:
-        h_lambdas_app_list = pk.load(f)
-    with open("results/h_lambdas_app2_list.pk", "wb") as f:
-        h_lambdas_app2_list = pk.load(f)
+    with open("results/h_lambdas_list.pk", "wb") as fi:
+        h_lambdas_list = pk.load(fi)
+    with open("results/h_lambdas_diff_list.pk", "wb") as fi:
+        h_lambdas_diff_list = pk.load(fi)
+    with open("results/h_lambdas_diff2_list.pk", "wb") as fi:
+        h_lambdas_diff2_list = pk.load(fi)
+    with open("results/h_lambdas_app_list.pk", "wb") as fi:
+        h_lambdas_app_list = pk.load(fi)
+    with open("results/h_lambdas_app2_list.pk", "wb") as fi:
+        h_lambdas_app2_list = pk.load(fi)
 
-    with open("results/diff_lambdas_pos.pk", "wb") as f:
-        diff_lambdas_pos = pk.load(f)
-    with open("results/diff_lambdas_neg.pk", "wb") as f:
-        diff_lambdas_neg = pk.load(f)
-    with open("results/vals_lambdas_pos.pk", "wb") as f:
-        vals_lambdas_pos = pk.load(f)
-    with open("results/vals_lambdas_neg.pk", "wb") as f:
-        vals_lambdas_neg = pk.load(f)
-
-from tools import f # to avoid having `f` as a buffer
+    with open("results/diff_lambdas_pos.pk", "wb") as fi:
+        diff_lambdas_pos = pk.load(fi)
+    with open("results/diff_lambdas_neg.pk", "wb") as fi:
+        diff_lambdas_neg = pk.load(fi)
+    with open("results/vals_lambdas_pos.pk", "wb") as fi:
+        vals_lambdas_pos = pk.load(fi)
+    with open("results/vals_lambdas_neg.pk", "wb") as fi:
+        vals_lambdas_neg = pk.load(fi)
