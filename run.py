@@ -146,6 +146,7 @@ for id_iter in range(nb_iter):
         ### for test purposes
         # Means
         means_list = []
+        means_zh_list = []
         means_exp_list = []
         diff_means_list = []
         diff_means_zh_list = []
@@ -153,6 +154,7 @@ for id_iter in range(nb_iter):
         diff_means_app_list = []
         # Variances
         varis_list = []
+        varis_zh_list = []
         varis_exp_list = []
         diff_varis_list = []
         diff_varis_zh_list = []
@@ -485,6 +487,7 @@ for id_iter in range(nb_iter):
                 means_exp_list.append(np.copy(means_exp))
                 means_exp_app_list.append(np.copy(means_exp_app))
                 means_list.append(np.copy(np.squeeze(expecs)))
+                means_zh_list.append(np.copy(np.squeeze(expecs_zh)))
                 const_bias = np.mean(diff_means_list)
 
                 # Variances
@@ -497,11 +500,12 @@ for id_iter in range(nb_iter):
                             np.var(g_fair_app[('neg', 0)].flatten()),
                             np.var(g_fair_app[('neg', 1)].flatten())])
                 diff_varis_list.append(np.copy(np.squeeze(varis) - varis_exp))
-                diff_varis_zh_list.append(np.copy(np.squeeze(varis_zh) + varis_exp))
+                diff_varis_zh_list.append(np.copy(np.squeeze(varis_zh) - varis_exp))
                 diff_varis_app_list.append(np.copy(np.squeeze(varis) - varis_exp_app))
                 varis_exp_list.append(np.copy(varis_exp))
                 varis_exp_app_list.append(np.copy(varis_exp_app))
                 varis_list.append(np.copy(np.squeeze(varis)))
+                varis_zh_list.append(np.copy(np.squeeze(varis_zh)))
 
             ### TODO: the following is useless atm, as the stacking of info already occurs just before (without the `h_`.
             # means
