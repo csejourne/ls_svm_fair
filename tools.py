@@ -663,6 +663,26 @@ def missclass_errors_theo(expecs, varis, thresh):
 
     return errors
 
+def missclass_errors_zh(expecs, varis, thresh):
+    """
+    The parameters in the arrays should be ordered as follow: (1, 0), (1, 1), (-1, 0), (-1, 1)
+    Args:
+        expecs: array of k x 1
+        varis: array of k x 1
+        thresh: float
+    returns:
+        errors: array of k x 1
+    """
+    assert expecs.shape == varis.shape
+    tmp = np.zeros(expecs.shape) 
+    tmp[0] = (expecs[0] - thresh)/np.sqrt(varis[0])
+    tmp[1] = (expecs[1] - thresh)/np.sqrt(varis[1])
+    tmp[2] = (thresh - expecs[2])/np.sqrt(varis[2])
+    tmp[3] = (thresh - expecs[3])/np.sqrt(varis[3])
+    errors = 1/2 * erfc(tmp/np.sqrt(2))
+
+    return errors
+
 def missclass_errors_exp(g_fair, thresh):
     """
     Args:
@@ -670,21 +690,22 @@ def missclass_errors_exp(g_fair, thresh):
         thresh: float for threshold (NOTE: we need to deal with the constant bias)
     """
     length = len(g_fair[('pos', 0)].flatten())
-    errors = np.zeros(4, length)
-    errors[0] = np.sign(g_fair[('pos', 0).flatten()] - threshold)
-    errors[1] = np.sign(g_fair[('pos', 1).flatten()] - threshold)
-    errors[2] = np.sign(g_fair[('neg', 0).flatten()] - threshold)
-    errors[3] = np.sign(g_fair[('neg', 1).flatten()] - threshold)
+    errors = np.zeros(4)
+    tmp = np.zeros((4, length))
+    tmp[0] = np.sign(g_fair[('pos', 0)].flatten() - thresh)
+    tmp[1] = np.sign(g_fair[('pos', 1)].flatten() - thresh)
+    tmp[2] = np.sign(g_fair[('neg', 0)].flatten() - thresh)
+    tmp[3] = np.sign(g_fair[('neg', 1)].flatten() - thresh)
 
     # Checks the case where the tolerance makes it so that we get the 0 sign.
-    assert np.argwhere(errors[0] == 0).size == 0
-    assert np.argwhere(errors[1] == 0).size == 0
-    assert np.argwhere(errors[2] == 0).size == 0
-    assert np.argwhere(errors[3] == 0).size == 0
+    assert np.argwhere(tmp[0] == 0).size == 0
+    assert np.argwhere(tmp[1] == 0).size == 0
+    assert np.argwhere(tmp[2] == 0).size == 0
+    assert np.argwhere(tmp[3] == 0).size == 0
 
-    errors[0] = np.sum(errors[0] < 0)/len(errors[0])
-    errors[1] = np.sum(errors[1] < 0)/len(errors[1])
-    errors[2] = np.sum(errors[2] > 0)/len(errors[2])
-    errors[3] = np.sum(errors[3] > 0)/len(errors[3])
+    errors[0] = np.sum(tmp[0] < 0)/len(tmp[0])
+    errors[1] = np.sum(tmp[1] < 0)/len(tmp[1])
+    errors[2] = np.sum(tmp[2] > 0)/len(tmp[2])
+    errors[3] = np.sum(tmp[3] > 0)/len(tmp[3])
 
     return errors

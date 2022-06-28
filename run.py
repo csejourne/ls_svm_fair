@@ -14,7 +14,9 @@ from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, buil
                 build_C_1, build_C_sqrt_n, build_C_n, build_D_1, build_D_sqrt_n, \
                 build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
                 build_Delta, build_F_n, build_tilde_F_n, decision_fair, decision_unfair, \
-                comp_fairness_constraints, get_metrics, missclass_errors_theo, missclass_errors_exp
+                comp_fairness_constraints, get_metrics, missclass_errors_theo, missclass_errors_exp, \
+                missclass_errors_zh
+
 
 from tools import f, f_p, f_pp, build_objects
 
@@ -39,7 +41,7 @@ We iterate over a high number of experiences to better evaluate the orders.
 nb_iter = 1
 nb_tests = 2
 nb_loops_test = 50
-cardinals_test = [500, 500, 500, 500]
+cardinals_test = [500, 500, 500, 500] # the base, we apply a coefficient later in the code
 n_test = sum(cardinals_test)
 
 ### Lists for debuggin purposes
@@ -143,6 +145,10 @@ for id_iter in range(nb_iter):
     
     
     for i in range(len(p_list)):
+        #cardinals_test = np.array(cardinals_test) * np.array(list_cardinals[i])/np.sum(list_cardinals[i])
+        #cardinals_test = list(np.rint(cardinals_test).astype(int))
+        #print("cardinals_test is: ", cardinals_test)
+
         ### for test purposes
         # Means
         means_list = []
@@ -160,6 +166,13 @@ for id_iter in range(nb_iter):
         diff_varis_zh_list = []
         varis_exp_app_list = []
         diff_varis_app_list = []
+        # Theoretical errors
+        errors_th = []
+        # Experimental errors
+        errors_exp = []
+        errors_unfair = []
+        # Zhenyu errors
+        errors_zh = []
 
         # Class distribution
         cardinals = list_cardinals[i]
@@ -185,8 +198,8 @@ for id_iter in range(nb_iter):
         # covariances from zhenyu's paper
         col = np.array([0.4**l for l in range(p)])
         C_2 = (1+5/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
-        cov_list = [np.eye(p), np.eye(p), C_2, C_2]
-        #cov_list = [np.eye(p), C_2, np.eye(p), C_2]
+        #cov_list = [np.eye(p), np.eye(p), C_2, C_2]
+        cov_list = [np.eye(p), C_2, np.eye(p), C_2]
         
         # Generate data.
         X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
@@ -506,6 +519,12 @@ for id_iter in range(nb_iter):
                 varis_exp_app_list.append(np.copy(varis_exp_app))
                 varis_list.append(np.copy(np.squeeze(varis)))
                 varis_zh_list.append(np.copy(np.squeeze(varis_zh)))
+
+                # Errors
+                errors_th.append(missclass_errors_theo(expecs - const_bias, varis, c1-c2)) #test with not constant but class depend bias.
+                errors_exp.append(missclass_errors_exp(g_fair, c1-c2))
+                errors_unfair.append(missclass_errors_exp(g_unfair, c1-c2))
+                errors_zh.append(missclass_errors_zh(-expecs_zh,varis_zh, c1-c2))
 
             ### TODO: the following is useless atm, as the stacking of info already occurs just before (without the `h_`.
             # means
