@@ -14,9 +14,13 @@ from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, buil
                 build_C_1, build_C_sqrt_n, build_C_n, build_D_1, build_D_sqrt_n, \
                 build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
                 build_Delta, build_F_n, build_tilde_F_n, decision_fair, decision_unfair, \
-                comp_fairness_constraints, get_metrics
+                comp_fairness_constraints, get_metrics, missclass_errors_theo, missclass_errors_exp
 
 from tools import f, f_p, f_pp, build_objects
+
+""" TODO
+- check formulae for theoretical curves
+"""
 
 ### NumPy print threshold size.
 np.set_printoptions(threshold = 100)
@@ -34,7 +38,7 @@ We iterate over a high number of experiences to better evaluate the orders.
 """
 nb_iter = 1
 nb_loops = 50
-cardinals_test = [1000, 1000, 1000, 1000]
+cardinals_test = [500, 500, 500, 500]
 n_test = sum(cardinals_test)
 
 ### Lists for debuggin purposes
@@ -86,18 +90,10 @@ for id_iter in range(nb_iter):
     #p_list = [256, 512, 1024]
     #list_cardinals = [[21, 11, 33, 58], [42, 22, 66, 116], [84, 44, 132, 232]]
     #p_list = [256, 512, 1024]
-    list_cardinals = [[21, 11, 33, 58], [42, 22, 66, 116]]
-    p_list = [256, 512]
-    #list_cardinals = [[42, 22, 66, 116]]
-    #p_list = [512]
-    #list_cardinals = [[150, 75, 75, 125], [300, 150, 150, 250], [600, 300, 300, 500]]
-    #p_list = [256, 512, 1024]
-    #list_cardinals = [[600, 300, 300, 500], [1200, 600, 600, 1000]]
-    #p_list = [1024, 2048]
-    #list_cardinals = [[1200, 600, 600, 1000], [2400, 1200, 1200, 2000]]
-    #p_list = [2048, 4096]
-    #list_cardinals = [[300, 150, 150, 250], [600, 300, 300, 500], [1200, 600, 600, 1000]]
-    #p_list = [512, 1024, 2048]
+    #list_cardinals = [[21, 11, 33, 58], [42, 22, 66, 116]]
+    #p_list = [256, 512]
+    list_cardinals = [[21, 11, 33, 58]]
+    p_list = [256]
     
     # Monitoring purposes.
     A_1_list = []
@@ -142,6 +138,7 @@ for id_iter in range(nb_iter):
         expecs_list = []
         means_exp_list = []
         diff_means_list = []
+        diff_means_zh_list = []
         means_exp_app_list = []
         diff_means_app_list = []
 
@@ -155,12 +152,12 @@ for id_iter in range(nb_iter):
         sigma=p
 
         ### Fairness setup
-        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
-                   mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
-        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
-        #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
         #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
+        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
+        #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
+        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
+                   mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
 
         #cov_list = [cov_scal*np.eye(p),  cov_scal*np.eye(p),
         #            (1+2/np.sqrt(p)) * cov_scal*np.eye(p),  (1+2/np.sqrt(p)) * cov_scal*np.eye(p)]
@@ -210,7 +207,6 @@ for id_iter in range(nb_iter):
         A_12 = matrix_fair[0, 1:].reshape((1, -1))
         A_21 = matrix_fair[1:, 0].reshape((-1, 1))
         A_22 = matrix_fair[1:, 1:]
-        #A_22_inv = np.linalg.inv(A_22)
         
         ### Generate approximators for control purposes.
         # Build V
@@ -239,8 +235,6 @@ for id_iter in range(nb_iter):
         C = C_n + C_sqrt_n
         
         ## $B_{22}$ in the companion paper.
-        #Om = K + n/gamma * np.eye(n)
-        #Om = np.linalg.inv(Om)
         P = np.eye(n) - 1/n * np.ones((n,n))
         L = gamma / (1 +gamma * f(tau)) * (np.eye(n) + f(tau)*gamma * P)
         Q = 2*f_p(tau)/n**2 * (A_1 + 1/p * W @ W.T + \
@@ -380,9 +374,7 @@ for id_iter in range(nb_iter):
             nu_a3 = 2*f_p(tau)**2/(n*p**2) * (np.trace(cov_list[0]@cov_list[a])/c1 + np.trace(cov_list[2]@cov_list[a]))
             varis_zh[a] = 8*gamma**2 * c1**2 * c2**2 *(nu_a1 + nu_a2 + nu_a3)
 
-
-        """
-        Store approximations
+        """ Store approximations
         """
 
         cumsum_cardinals = np.append(0, np.cumsum(cardinals))
@@ -398,8 +390,6 @@ for id_iter in range(nb_iter):
         lambdas_diff_list.append(np.array([lambda_pos, lambda_neg]) - np.squeeze(R_n))
         lambdas_diff2_list.append(np.array([lambda_pos, lambda_neg]) - np.squeeze(F_n @ Delta.T @ (C_sqrt_n + C_n) @ (y-b*ones_n)))
 
-    
-
         """
         Classify new data after fitting the fair LS-SVM
         """
@@ -408,27 +398,28 @@ for id_iter in range(nb_iter):
             pred_function_fair = partial(decision_fair, X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict)
             pred_function_fair_app = partial(decision_fair, X, b_app, R_n[0,0], R_n[1,0], alpha_app, sigma, ind_dict)
             pred_function_unfair = partial(decision_unfair, X, b_unfair, alpha_unfair, sigma)
+
+            ### For storing results
+            g_fair = {}
+            g_fair[("pos", 0)] = np.zeros((nb_loops, cardinals_test[0]))
+            g_fair[("pos", 1)] = np.zeros((nb_loops, cardinals_test[1]))
+            g_fair[("neg", 0)] = np.zeros((nb_loops, cardinals_test[2]))
+            g_fair[("neg", 1)] = np.zeros((nb_loops, cardinals_test[3]))
+
+            g_fair_app = {}
+            g_fair_app[("pos", 0)] = np.zeros((nb_loops, cardinals_test[0]))
+            g_fair_app[("pos", 1)] = np.zeros((nb_loops, cardinals_test[1]))
+            g_fair_app[("neg", 0)] = np.zeros((nb_loops, cardinals_test[2]))
+            g_fair_app[("neg", 1)] = np.zeros((nb_loops, cardinals_test[3]))
+
+            g_unfair = {}
+            g_unfair[("pos", 0)] = np.zeros((nb_loops, cardinals_test[0]))
+            g_unfair[("pos", 1)] = np.zeros((nb_loops, cardinals_test[1]))
+            g_unfair[("neg", 0)] = np.zeros((nb_loops, cardinals_test[2]))
+            g_unfair[("neg", 1)] = np.zeros((nb_loops, cardinals_test[3]))
             
             for loop in range(nb_loops):
                 print(f"\t test {(loop+1)/nb_loops}")
-                ### For storing results
-                g_fair = {}
-                g_fair[("pos", 0)] = np.zeros(cardinals_test[0])
-                g_fair[("pos", 1)] = np.zeros(cardinals_test[1])
-                g_fair[("neg", 0)] = np.zeros(cardinals_test[2])
-                g_fair[("neg", 1)] = np.zeros(cardinals_test[3])
-
-                g_fair_app = {}
-                g_fair_app[("pos", 0)] = np.zeros(cardinals_test[0])
-                g_fair_app[("pos", 1)] = np.zeros(cardinals_test[1])
-                g_fair_app[("neg", 0)] = np.zeros(cardinals_test[2])
-                g_fair_app[("neg", 1)] = np.zeros(cardinals_test[3])
-
-                g_unfair = {}
-                g_unfair[("pos", 0)] = np.zeros(cardinals_test[0])
-                g_unfair[("pos", 1)] = np.zeros(cardinals_test[1])
-                g_unfair[("neg", 0)] = np.zeros(cardinals_test[2])
-                g_unfair[("neg", 1)] = np.zeros(cardinals_test[3])
 
                 ### Generate test dataset
                 X_test, y_test, sens_labels_test, ind_dict_test = gen_dataset(mu_list, cov_list, cardinals_test)
@@ -444,9 +435,9 @@ for id_iter in range(nb_iter):
                 ### Extract the predictions for each subclass for plotting use later.
                 for key in ind_dict.keys():
                     inds = np.nonzero(np.squeeze(ind_dict_test[key])) 
-                    g_fair[key] = preds_fair[inds]
-                    g_fair_app[key] = preds_fair_app[inds]
-                    g_unfair[key] = preds_unfair[inds]
+                    g_fair[key][loop] = preds_fair[inds]
+                    g_fair_app[key][loop] = preds_fair_app[inds]
+                    g_unfair[key][loop] = preds_unfair[inds]
                 
 
                 ### Remove threshold like Zhenyu
@@ -464,19 +455,24 @@ for id_iter in range(nb_iter):
                 
 
                 ### Study the results
-                means_exp = np.array([np.mean(g_fair[('pos', 0)].flatten()), 
-                            np.mean(g_fair[('pos', 1)].flatten()),
-                            np.mean(g_fair[('neg', 0)].flatten()),
-                            np.mean(g_fair[('neg', 1)].flatten())])
-                means_exp_app = np.array([np.mean(g_fair_app[('pos', 0)].flatten()), 
-                            np.mean(g_fair_app[('pos', 1)].flatten()),
-                            np.mean(g_fair_app[('neg', 0)].flatten()),
-                            np.mean(g_fair_app[('neg', 1)].flatten())])
-                diff_means_list.append(np.copy(np.squeeze(expecs) - means_exp))
-                diff_means_app_list.append(np.copy(np.squeeze(expecs) - means_exp_app))
-                means_exp_list.append(np.copy(means_exp))
-                means_exp_app_list.append(np.copy(means_exp_app))
-                expecs_list.append(np.copy(np.squeeze(expecs)))
+                # NOTE: we only compute some statistics on the last batch of
+                # prediction. Might change in the future
+                #TODO: change that, and the storage accordingly.
+            means_exp = np.array([np.mean(g_fair[('pos', 0)].flatten()), 
+                        np.mean(g_fair[('pos', 1)].flatten()),
+                        np.mean(g_fair[('neg', 0)].flatten()),
+                        np.mean(g_fair[('neg', 1)].flatten())])
+            means_exp_app = np.array([np.mean(g_fair_app[('pos', 0)].flatten()), 
+                        np.mean(g_fair_app[('pos', 1)].flatten()),
+                        np.mean(g_fair_app[('neg', 0)].flatten()),
+                        np.mean(g_fair_app[('neg', 1)].flatten())])
+            diff_means_list.append(np.copy(np.squeeze(expecs) - means_exp))
+            diff_means_zh_list.append(np.copy(np.squeeze(expecs_zh) + means_exp))
+            diff_means_app_list.append(np.copy(np.squeeze(expecs) - means_exp_app))
+            means_exp_list.append(np.copy(means_exp))
+            means_exp_app_list.append(np.copy(means_exp_app))
+            expecs_list.append(np.copy(np.squeeze(expecs)))
+            const_bias = np.mean(diff_means_list)
 
             h_diff_means_list.append(np.mean(np.array(diff_means_list), axis=0))
             h_means_exp_list.append(np.mean(np.array(means_exp_list), axis=0))
@@ -545,6 +541,8 @@ for id_iter in range(nb_iter):
         alpha_stds.append(np.array([np.std(alpha_diff_list[a][idxs[i-1]:idxs[i]]) for i in range(1, len(idxs))]))
     h_alpha_stds.append(alpha_stds)
 
+""" For saving array or restoring saved arrays
+"""
 if save_arr_test:
     print("Saving test arrays")
     with open("results/h_diff_means_list.pk", "wb") as fi:
