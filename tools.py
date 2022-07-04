@@ -391,6 +391,15 @@ def build_objects(mu_list, cardinals, cov_list):
             S[i,j] = 1/p * np.trace(cov_list[i] @ cov_list[j])
     return J, M, t, S
 
+def build_S_debug(cov_list):
+    k = len(cov_list)
+    p = len(cov_list[0])
+    S = np.zeros((k,k))
+    for i in range(k):
+        for j in range(k):
+            S[i,j] = 1/p * np.trace(cov_list[i] @ cov_list[j])
+    return S
+
 def build_V(cardinals, mu_list, cov_list, J, W, M, t): 
     """
     Args:

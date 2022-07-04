@@ -15,10 +15,11 @@ from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, buil
                 build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
                 build_Delta, build_F_n, build_tilde_F_n, decision_fair, decision_unfair, \
                 comp_fairness_constraints, get_metrics, missclass_errors_theo, missclass_errors_exp, \
-                missclass_errors_zh
+                missclass_errors_zh, build_S_debug
 
 
 from tools import f, f_p, f_pp, build_objects
+from sys import exit
 
 """ TODO
 - check formulae for theoretical curves
@@ -39,7 +40,7 @@ plot_test = True
 We iterate over a high number of experiences to better evaluate the orders.
 """
 nb_iter = 1
-nb_tests = 2
+nb_tests = 1
 nb_loops_test = 50
 cardinals_test = [500, 500, 500, 500] # the base, we apply a coefficient later in the code
 n_test = sum(cardinals_test)
@@ -91,7 +92,7 @@ for id_iter in range(nb_iter):
     ### Hyperparameters
     mode = "strict"
     gamma = 1
-    mean_scal = 3
+    mean_scal = 5
     cov_scal = 1
     print("Experiment begin")
     #print(f"cov_scal is {cov_scal}")
@@ -103,7 +104,8 @@ for id_iter in range(nb_iter):
     #p_list = [256, 512, 1024]
     #list_cardinals = [[21, 11, 33, 58], [42, 22, 66, 116]]
     #p_list = [256, 512]
-    list_cardinals = [[21, 11, 33, 58]]
+    list_cardinals = [[42, 22, 66, 116]]
+    #list_cardinals = [[31, 31, 31, 31]]
     p_list = [256]
     
     # Monitoring purposes.
@@ -200,6 +202,7 @@ for id_iter in range(nb_iter):
         C_2 = (1+5/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
         #cov_list = [np.eye(p), np.eye(p), C_2, C_2]
         cov_list = [np.eye(p), C_2, np.eye(p), C_2]
+        #cov_list = [(1 + 2/np.sqrt(p))*np.eye(p), C_2, (1 + 2/np.sqrt(p))*np.eye(p), C_2]
         
         # Generate data.
         X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
@@ -317,6 +320,7 @@ for id_iter in range(nb_iter):
         #A_22_inv_app[:2, 2:] = F_n @ Delta.T @ (C_sqrt_n + C_n)
         #A_22_inv_app[2:, :2] = (C_sqrt_n + C_n).T @ Delta @ F_n
 
+        ###### Computes approximations
         ### Compute approximation of `b`
         b_sqrt_n = (1 + gamma*f(tau))/(gamma*f_p(tau)**2) * det_tilde_G_n + 1/p * t.T@J.T@Delta@tilde_G_n@Delta.T @ J @ t
         b_sqrt_n = 1/b_sqrt_n
@@ -372,6 +376,21 @@ for id_iter in range(nb_iter):
         expecs_zh[2] += 2*c1**2*c2 * D_cal_zh
         expecs_zh[3] += 2*c1**2*c2 * D_cal_zh
 
+        # TODO: NOTE: tau depends on the covariances. If cardinals are equal, its ok, but be careful
+        print("normal covariances")
+        #print("inverted covariances")
+        #cov_list_old = [cov_list[0], cov_list[1], cov_list[2], cov_list[3]]
+        #cov_list = [cov_list_old[1], cov_list_old[0], cov_list_old[3], cov_list_old[2]]
+        S_debug = build_S_debug(cov_list)
+        S2 = np.zeros((k,k))
+        S2[0] = S[1]
+        S2[1] = S[0]
+        S2[2] = S[3]
+        S2[3] = S[2]
+        #sens_list = np.array([1, 0, 1, 0])
+
+        coef_debug = []
+        tr_debug = []
         for a in range(k):
             """
             Formulae for fair LS-SVM
@@ -389,14 +408,26 @@ for id_iter in range(nb_iter):
             tmp = 2/p**2 * (gamma*f_pp(tau)/(2*n*np.sqrt(p))*t.T @ n_signed + n*alpha_n_3_2*f_p(tau))**2 * \
                     np.trace(cov_list[a] @ cov_list[a])
             varis[a] += np.squeeze(tmp)
+            #print("1 tmp: ", tmp)
+            #print("1 varis ", varis)
             tmp = (2*gamma*f_p(tau)/(n*p) * (n_signed - factor*vec_prop).T + 2*f_p(tau)/p*R_n.T@Delta.T@J) @ mu_diff.T @ cov_list[a] @ mu_diff @ (2*gamma*f_p(tau)/(n*p) * (n_signed - factor*vec_prop) + 2*f_p(tau)/p*J.T @ Delta @ R_n)
             varis[a] += np.squeeze(tmp)
-            R_n_coef = R_n[int(np.floor(b/2))]
+            #print("2 tmp: ", tmp)
+            #print("2 varis ", varis)
             tmp = [(gamma**2/n**2*vec_prop[b]* (1 + factor**2 - 2*y_list[b]*factor) 
-                    + R_n_coef**2/vec_prop[b]
-                    + 2*gamma/n * (y_list[b] - factor)*(-1)**sens_list[b]*R_n_coef
+                    + R_n[int(np.floor(b/2))]**2/vec_prop[b]
+                    + 2*gamma/n * (y_list[b] - factor)*(-1)**sens_list[b]*R_n[int(np.floor(b/2))]
                     ) *S[a,b] for b in range(k)]
             varis[a] += (2*f_p(tau))**2/p * np.sum(tmp)
+            coef_debug.append([
+                    (gamma**2/n**2*vec_prop[b]* (1 + factor**2 - 2*y_list[b]*factor) 
+                    + R_n[int(np.floor(b/2))]**2/vec_prop[b]
+                    + 2*gamma/n * (y_list[b] - factor)*(-1)**sens_list[b]*R_n[int(np.floor(b/2))])
+                    for b in range(k)]
+                    )
+            tr_debug.append([S2[a,b] for b in range(k)])
+            #print("3 tmp: ", (2*f_p(tau))**2/p * np.sum(tmp), "\n")
+            #print("3 varis ", varis, "\n")
 
             """
             For Zhenyu binary LS_SVM
@@ -405,6 +436,13 @@ for id_iter in range(nb_iter):
             nu_a2 = 2*f_p(tau)**2/p**2 * (mu_list[2] - mu_list[0]).T @ cov_list[a] @ (mu_list[2] - mu_list[0])
             nu_a3 = 2*f_p(tau)**2/(n*p**2) * (np.trace(cov_list[0]@cov_list[a])/c1 + np.trace(cov_list[2]@cov_list[a]))
             varis_zh[a] = 8*gamma**2 * c1**2 * c2**2 *(nu_a1 + nu_a2 + nu_a3)
+
+        #exit()
+
+        ### Test to see if the formulae are indeed inverted between the sensitive attributes for variances.
+        #cov_list = cov_list_old
+        #new_varis = np.array([varis[1,0], varis[0,0], varis[3,0], varis[2,0]]) 
+        #varis = new_varis.reshape((-1, 1))
 
         """ Store approximations
         """
@@ -570,7 +608,7 @@ for id_iter in range(nb_iter):
                 
                 ### Associated theoretical gaussian
                 colors = ['b', 'g', 'r', 'y']
-                space = np.linspace(expecs[0] - 8*np.sqrt(varis[0]), expecs[0] + 8*np.sqrt(varis[0]), 300)
+                space = np.linspace(c1 - c2 - 8*np.sqrt(varis[0]), c1 - c2 + 8*np.sqrt(varis[0]), 300)
                 for a in range(k):
                     axs[0].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
                     axs[0].plot(space, stats.norm.pdf(space, means_exp[a], np.sqrt(varis[a])), color=colors[a], linestyle='-.')
