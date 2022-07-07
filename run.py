@@ -15,7 +15,7 @@ from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, buil
                 build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
                 build_Delta, build_F_n, build_tilde_F_n, decision_fair, decision_unfair, \
                 comp_fairness_constraints, get_metrics, missclass_errors_theo, missclass_errors_exp, \
-                missclass_errors_zh
+                missclass_errors_zh, tot_errors
 
 
 from tools import f, f_p, f_pp, build_objects
@@ -97,14 +97,14 @@ for id_iter in range(nb_iter):
     cov_scal = 1
     print("Experiment begin")
     #print(f"cov_scal is {cov_scal}")
-    #list_cardinals = [[42, 22, 66, 116]]
-    #list_cardinals = [[61, 61, 61, 61]]
-    #list_cardinals = [[60, 60, 60, 60], [120, 120, 120, 120]]
+    cardinals_list = [[42, 22, 66, 116]]
+    #cardinals_list = [[61, 61, 61, 61]]
+    #cardinals_list = [[60, 60, 60, 60], [120, 120, 120, 120]]
     #p_list = [256, 512]
-    list_cardinals = [[30, 30, 30, 30], [60, 60, 60, 60]]
-    p_list = [128, 256]
-    #list_cardinals = [[60, 60, 60, 60]]
-    #p_list = [256]
+    #cardinals_list = [[30, 30, 30, 30], [60, 60, 60, 60]]
+    #p_list = [128, 256]
+    #cardinals_list = [[60, 60, 60, 60]]
+    p_list = [256]
     
     # Monitoring purposes.
     A_1_list = []
@@ -146,7 +146,7 @@ for id_iter in range(nb_iter):
     
     
     for i in range(len(p_list)):
-        #cardinals_test = np.array(cardinals_test) * np.array(list_cardinals[i])/np.sum(list_cardinals[i])
+        #cardinals_test = np.array(cardinals_test) * np.array(cardinals_list[i])/np.sum(cardinals_list[i])
         #cardinals_test = list(np.rint(cardinals_test).astype(int))
         #print("cardinals_test is: ", cardinals_test)
 
@@ -176,7 +176,7 @@ for id_iter in range(nb_iter):
         errors_zh = []
 
         # Class distribution
-        cardinals = list_cardinals[i]
+        cardinals = cardinals_list[i]
         p = p_list[i]
         print("\n\tcardinals: ", cardinals, "  ||  p: ", p)
         k = len(cardinals)
@@ -185,10 +185,17 @@ for id_iter in range(nb_iter):
         sigma=p
 
         ### Fairness setup
-        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
-        #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
-        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
-                   mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
+        beta_pos = 0.9
+        beta_neg = beta_pos
+        noise_pos = rng.multivariate_normal(np.zeros(p), np.eye(p))
+        noise_neg = rng.multivariate_normal(np.zeros(p), np.eye(p))
+        mu_list = [mean_scal * one_hot(0, p),
+                   beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
+                   mean_scal * one_hot(1, p),
+                   beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
+                   ]
+        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
+        #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
         #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
 
@@ -198,12 +205,12 @@ for id_iter in range(nb_iter):
         #            cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
         # covariances from zhenyu's paper
         col = np.array([0.4**l for l in range(p)])
-        C_2 = (1+5/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
+        C_2 = (1+2/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
         #cov_list = [np.eye(p), np.eye(p), C_2, C_2]
         cov_list = [np.eye(p), C_2, np.eye(p), C_2]
         #cov_list = [(1 + 2/np.sqrt(p))*np.eye(p), C_2, (1 + 2/np.sqrt(p))*np.eye(p), C_2]
         
-        # Generate data.
+        ### Generate data.
         X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
         assert (n, p) == X.shape
         W = extract_W(X, mu_list, cardinals)
@@ -472,15 +479,16 @@ for id_iter in range(nb_iter):
                     c1 = (cardinals[0] + cardinals[1])/n
                 
                     ### Extract the predictions for each subclass for plotting use later.
-                    for key in ind_dict.keys():
+                    for key in ind_dict_test.keys():
                         inds = np.nonzero(np.squeeze(ind_dict_test[key])) 
                         g_fair[key][loop] = preds_fair[inds]
                         g_fair_app[key][loop] = preds_fair_app[inds]
                         g_unfair[key][loop] = preds_unfair[inds]
                     
-
                     ### Remove threshold like Zhenyu
-                    threshold = float(c1 - c2 - b_sqrt_n)
+                    # Test different formula for the threshold. TODO: check which one should be theoretically (remove b_sqrt_n ?)
+                    #threshold = float(c1 - c2 - b_sqrt_n)
+                    threshold = float(c1 - c2)
                     preds_fair = preds_fair - (threshold) # remove threshold
                     preds_fair_app = preds_fair_app - (threshold) # remove threshold
                     preds_unfair = preds_unfair - (threshold) # remove threshold
@@ -533,7 +541,7 @@ for id_iter in range(nb_iter):
                 errors_unfair.append(missclass_errors_exp(g_unfair, threshold))
                 errors_zh.append(missclass_errors_zh(-expecs_zh,varis_zh, threshold))
 
-            ### TODO: the following is useless atm, as the stacking of info already occurs just before (without the `h_`.
+            ### Storing results.
             # means
             h_diff_means_list.append(np.array(diff_means_list))
             h_means_exp_list.append(np.array(means_exp_list))
@@ -572,7 +580,8 @@ for id_iter in range(nb_iter):
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 hists[('neg', 1)] = axs[0].hist(g_fair[('neg', 1)].flatten(), 50, facecolor='yellow',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[0].axvline(x=threshold, color='red')
+                #axs[0].axvline(x=threshold, color='red')
+                axs[0].axvline(x=c1 - c2, color='red')
                 axs[0].set_title("fair LS-SVM")
 
                 axs[1].hist(g_unfair[('pos', 0)].flatten(), 50, facecolor='blue', alpha=0.4,
@@ -602,7 +611,7 @@ for id_iter in range(nb_iter):
                 plt.show()
 
     ### Store history of iterations.
-    cumsum_cardinals = [np.append(0, np.cumsum(list_cardinals[i])) for i in range(len(p_list))]
+    cumsum_cardinals = [np.append(0, np.cumsum(cardinals_list[i])) for i in range(len(p_list))]
     h_b_list.append(b_list)
     h_b_app_list.append(b_app_list)
     h_b_diff_list.append(b_diff_list)

@@ -248,6 +248,7 @@ def decision_unfair(X, b, alpha, sigma, x_q):
 def comp_fairness_constraints(preds, ind_dict, with_int=False):
     """
     Computes the value of the fairness constraints, to see how well they are respected by `pred_func`.
+    NOTE: this function computes the approximated expectation of conditional variables, not the probabilities of errors.
 
     Args:
         preds: (array 1D) predictions to be assessed.
@@ -661,7 +662,7 @@ def missclass_errors_theo(expecs, varis, thresh):
     tmp[3] = (thresh - expecs[3])/np.sqrt(varis[3])
     errors = 1/2 * erfc(tmp/np.sqrt(2))
 
-    return errors
+    return np.squeeze(errors)
 
 def missclass_errors_zh(expecs, varis, thresh):
     """
@@ -681,7 +682,7 @@ def missclass_errors_zh(expecs, varis, thresh):
     tmp[3] = (thresh - expecs[3])/np.sqrt(varis[3])
     errors = 1/2 * erfc(tmp/np.sqrt(2))
 
-    return errors
+    return np.squeeze(errors)
 
 def missclass_errors_exp(g_fair, thresh):
     """
@@ -709,3 +710,18 @@ def missclass_errors_exp(g_fair, thresh):
     errors[3] = np.sum(tmp[3] > 0)/len(tmp[3])
 
     return errors
+
+def tot_errors(errors, cardinals_list):
+    """
+    Args:
+        errors: list of arrays of errors (4,)
+        cardinals_list: list of 4 elements with cardinals of each class
+    returns:
+        total errors
+    """
+    tot_err = []
+    n = np.sum(cardinals_list)
+    prop = np.array(cardinals_list)/n
+    for i in range(len(errors)):
+        tot_err.append(np.sum(prop*errors[i]))
+    return tot_err
