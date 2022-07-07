@@ -15,7 +15,7 @@ from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, buil
                 build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
                 build_Delta, build_F_n, build_tilde_F_n, decision_fair, decision_unfair, \
                 comp_fairness_constraints, get_metrics, missclass_errors_theo, missclass_errors_exp, \
-                missclass_errors_zh, build_S_debug
+                missclass_errors_zh
 
 
 from tools import f, f_p, f_pp, build_objects
@@ -78,7 +78,8 @@ h_varis_zh_list = []
 h_diff_varis_list = []
 h_varis_exp_app_list = []
 h_diff_varis_app_list = []
-
+h_diff_means_exp_list = []
+h_diff_std_list = []
 
 for id_iter in range(nb_iter):
     print(f"iter {id_iter + 1}/{nb_iter}")
@@ -92,21 +93,18 @@ for id_iter in range(nb_iter):
     ### Hyperparameters
     mode = "strict"
     gamma = 1
-    mean_scal = 5
+    mean_scal = 3
     cov_scal = 1
     print("Experiment begin")
     #print(f"cov_scal is {cov_scal}")
-    #list_cardinals = [[32, 32, 96, 96]]
-    #p_list = [512]
-    #list_cardinals = [[16, 16, 48, 48], [32, 32, 96, 96], [64, 64, 192, 192]]
-    #p_list = [256, 512, 1024]
-    #list_cardinals = [[21, 11, 33, 58], [42, 22, 66, 116], [84, 44, 132, 232]]
-    #p_list = [256, 512, 1024]
-    #list_cardinals = [[21, 11, 33, 58], [42, 22, 66, 116]]
+    #list_cardinals = [[42, 22, 66, 116]]
+    #list_cardinals = [[61, 61, 61, 61]]
+    #list_cardinals = [[60, 60, 60, 60], [120, 120, 120, 120]]
     #p_list = [256, 512]
-    list_cardinals = [[42, 22, 66, 116]]
-    #list_cardinals = [[31, 31, 31, 31]]
-    p_list = [256]
+    list_cardinals = [[30, 30, 30, 30], [60, 60, 60, 60]]
+    p_list = [128, 256]
+    #list_cardinals = [[60, 60, 60, 60]]
+    #p_list = [256]
     
     # Monitoring purposes.
     A_1_list = []
@@ -144,6 +142,7 @@ for id_iter in range(nb_iter):
     denom_app2_list = []
     num_diff_list = []
     denom_diff_list = []
+    diff_means_exp_list = []
     
     
     for i in range(len(p_list)):
@@ -151,7 +150,7 @@ for id_iter in range(nb_iter):
         #cardinals_test = list(np.rint(cardinals_test).astype(int))
         #print("cardinals_test is: ", cardinals_test)
 
-        ### for test purposes
+        ### for storing test purposes
         # Means
         means_list = []
         means_zh_list = []
@@ -314,12 +313,6 @@ for id_iter in range(nb_iter):
         det_tilde_F_n_app = np.linalg.det(tilde_F_n_app)
         factor = ones_k.T @ n_signed / n
 
-        ### Compute approximation of A_22_inv
-        #A_22_inv_app = np.zeros((n+2, n+2))
-        #A_22_inv_app[:2, :2] = F_n
-        #A_22_inv_app[:2, 2:] = F_n @ Delta.T @ (C_sqrt_n + C_n)
-        #A_22_inv_app[2:, :2] = (C_sqrt_n + C_n).T @ Delta @ F_n
-
         ###### Computes approximations
         ### Compute approximation of `b`
         b_sqrt_n = (1 + gamma*f(tau))/(gamma*f_p(tau)**2) * det_tilde_G_n + 1/p * t.T@J.T@Delta@tilde_G_n@Delta.T @ J @ t
@@ -356,9 +349,8 @@ for id_iter in range(nb_iter):
 
         ### own formulae
         expecs = factor * np.ones((k, 1)) \
-                + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed \
                 + b_sqrt_n \
-                + n*alpha_n_3_2*f(tau)
+                + D_cal
         varis = np.zeros((k,1))
         y_list = np.array([1, 1, -1, -1])
         sens_list = np.array([0, 1, 0, 1])
@@ -381,53 +373,37 @@ for id_iter in range(nb_iter):
         #print("inverted covariances")
         #cov_list_old = [cov_list[0], cov_list[1], cov_list[2], cov_list[3]]
         #cov_list = [cov_list_old[1], cov_list_old[0], cov_list_old[3], cov_list_old[2]]
-        S_debug = build_S_debug(cov_list)
-        S2 = np.zeros((k,k))
-        S2[0] = S[1]
-        S2[1] = S[0]
-        S2[2] = S[3]
-        S2[3] = S[2]
-        #sens_list = np.array([1, 0, 1, 0])
-
-        coef_debug = []
-        tr_debug = []
         for a in range(k):
             """
             Formulae for fair LS-SVM
             """
             ### Compute the expectations `E_a`
-            mu_diff = np.stack([mu_list[b] - mu_list[a] for b in range(k)]).T
-            tmp = (gamma*f_pp(tau)*t.T @ n_signed/(2*n*np.sqrt(p)) + n*alpha_n_3_2 * f_p(tau))* \
-                        np.trace(cov_list[a])/p
-            D_cal_x = (gamma*f_p(tau)/(n*p)*(n_signed - factor*vec_prop).T + f_p(tau)/p * R_n.T @ Delta.T @ J)@mu_diff_dist[:, a] \
-                + (2*gamma*f_pp(tau)/(n*p) * (n_signed - factor*vec_prop).T + 2*f_pp(tau)/p*R_n.T @ Delta.T @ J)@ S[:, a] \
-                + (gamma*f_pp(tau)/(2*n*p)* t.T @ n_signed + n*alpha_n_3_2 *f_p(tau)/np.sqrt(p))*t[a]
-            expecs[a] += np.squeeze(tmp + D_cal + D_cal_x)
+            tmp = (gamma*f_pp(tau)*t.T @ n_signed/(2*n*np.sqrt(p)) 
+                    + n*alpha_n_3_2 * f_p(tau) 
+                    + f_pp(tau)/np.sqrt(p) * R_n.T @ Delta.T @ J @ t) * np.trace(cov_list[a])/p
+            D_cal_x = (gamma*f_p(tau)/(n*p)*(n_signed - factor*vec_prop).T 
+                            + f_p(tau)/p * R_n.T @ Delta.T @ J)@mu_diff_dist[:, a] \
+                + (2*gamma*f_pp(tau)/(n*p) * (n_signed - factor*vec_prop).T 
+                            + 2*f_pp(tau)/p*R_n.T @ Delta.T @ J)@ S[:, a] \
+                + (gamma*f_pp(tau)/(2*n*p)* t.T @ n_signed 
+                            + n*alpha_n_3_2 *f_p(tau)/np.sqrt(p)
+                            + f_pp(tau)/p * R_n.T @ Delta.T @ J @ t)*t[a]
+            expecs[a] += np.squeeze(tmp + D_cal_x)
 
             ### Compute the variances `Var_a`
-            tmp = 2/p**2 * (gamma*f_pp(tau)/(2*n*np.sqrt(p))*t.T @ n_signed + n*alpha_n_3_2*f_p(tau))**2 * \
-                    np.trace(cov_list[a] @ cov_list[a])
+            mu_diff = np.stack([mu_list[b] - mu_list[a] for b in range(k)]).T
+            tmp = 2/p**2 * (gamma*f_pp(tau)/(2*n*np.sqrt(p))*t.T @ n_signed 
+                                + n*alpha_n_3_2*f_p(tau))**2 * np.trace(cov_list[a] @ cov_list[a])
             varis[a] += np.squeeze(tmp)
-            #print("1 tmp: ", tmp)
-            #print("1 varis ", varis)
+
             tmp = (2*gamma*f_p(tau)/(n*p) * (n_signed - factor*vec_prop).T + 2*f_p(tau)/p*R_n.T@Delta.T@J) @ mu_diff.T @ cov_list[a] @ mu_diff @ (2*gamma*f_p(tau)/(n*p) * (n_signed - factor*vec_prop) + 2*f_p(tau)/p*J.T @ Delta @ R_n)
             varis[a] += np.squeeze(tmp)
-            #print("2 tmp: ", tmp)
-            #print("2 varis ", varis)
+
             tmp = [(gamma**2/n**2*vec_prop[b]* (1 + factor**2 - 2*y_list[b]*factor) 
                     + R_n[int(np.floor(b/2))]**2/vec_prop[b]
                     + 2*gamma/n * (y_list[b] - factor)*(-1)**sens_list[b]*R_n[int(np.floor(b/2))]
                     ) *S[a,b] for b in range(k)]
             varis[a] += (2*f_p(tau))**2/p * np.sum(tmp)
-            coef_debug.append([
-                    (gamma**2/n**2*vec_prop[b]* (1 + factor**2 - 2*y_list[b]*factor) 
-                    + R_n[int(np.floor(b/2))]**2/vec_prop[b]
-                    + 2*gamma/n * (y_list[b] - factor)*(-1)**sens_list[b]*R_n[int(np.floor(b/2))])
-                    for b in range(k)]
-                    )
-            tr_debug.append([S2[a,b] for b in range(k)])
-            #print("3 tmp: ", (2*f_p(tau))**2/p * np.sum(tmp), "\n")
-            #print("3 varis ", varis, "\n")
 
             """
             For Zhenyu binary LS_SVM
@@ -437,16 +413,8 @@ for id_iter in range(nb_iter):
             nu_a3 = 2*f_p(tau)**2/(n*p**2) * (np.trace(cov_list[0]@cov_list[a])/c1 + np.trace(cov_list[2]@cov_list[a]))
             varis_zh[a] = 8*gamma**2 * c1**2 * c2**2 *(nu_a1 + nu_a2 + nu_a3)
 
-        #exit()
-
-        ### Test to see if the formulae are indeed inverted between the sensitive attributes for variances.
-        #cov_list = cov_list_old
-        #new_varis = np.array([varis[1,0], varis[0,0], varis[3,0], varis[2,0]]) 
-        #varis = new_varis.reshape((-1, 1))
-
         """ Store approximations
         """
-
         cumsum_cardinals = np.append(0, np.cumsum(cardinals))
         b_list = np.append(b_list, b)
         b_app_list = np.append(b_app_list, b_app)
@@ -512,9 +480,10 @@ for id_iter in range(nb_iter):
                     
 
                     ### Remove threshold like Zhenyu
-                    preds_fair = preds_fair - (c1 - c2) # remove threshold
-                    preds_fair_app = preds_fair_app - (c1 - c2) # remove threshold
-                    preds_unfair = preds_unfair - (c1 - c2) # remove threshold
+                    threshold = float(c1 - c2 - b_sqrt_n)
+                    preds_fair = preds_fair - (threshold) # remove threshold
+                    preds_fair_app = preds_fair_app - (threshold) # remove threshold
+                    preds_unfair = preds_unfair - (threshold) # remove threshold
                     
                     ### Compare how well both predictions function satisfy fairness properties.
                     results_fair = get_metrics(preds_fair, y_test, ind_dict_test)
@@ -559,10 +528,10 @@ for id_iter in range(nb_iter):
                 varis_zh_list.append(np.copy(np.squeeze(varis_zh)))
 
                 # Errors
-                errors_th.append(missclass_errors_theo(expecs - const_bias, varis, c1-c2)) #test with not constant but class depend bias.
-                errors_exp.append(missclass_errors_exp(g_fair, c1-c2))
-                errors_unfair.append(missclass_errors_exp(g_unfair, c1-c2))
-                errors_zh.append(missclass_errors_zh(-expecs_zh,varis_zh, c1-c2))
+                errors_th.append(missclass_errors_theo(expecs - const_bias, varis, threshold)) #test with not constant but class depend bias.
+                errors_exp.append(missclass_errors_exp(g_fair, threshold))
+                errors_unfair.append(missclass_errors_exp(g_unfair, threshold))
+                errors_zh.append(missclass_errors_zh(-expecs_zh,varis_zh, threshold))
 
             ### TODO: the following is useless atm, as the stacking of info already occurs just before (without the `h_`.
             # means
@@ -571,12 +540,23 @@ for id_iter in range(nb_iter):
             h_diff_means_app_list.append(np.array(diff_means_app_list))
             h_means_exp_app_list.append(np.array(means_exp_app_list))
             h_means_list.append(np.array(means_list))
+            h_diff_means_exp_list.append(np.squeeze(np.array(
+                    [means_exp[1] - means_exp[0], means_exp[3] - means_exp[2]]
+                    )))
             # variances
+            h_varis_list.append(np.array(varis_list))
             h_diff_varis_list.append(np.array(diff_varis_list))
             h_varis_exp_list.append(np.array(varis_exp_list))
             h_diff_varis_app_list.append(np.array(diff_varis_app_list))
             h_varis_exp_app_list.append(np.array(varis_exp_app_list))
             h_means_list.append(np.array(means_list))
+            #std
+            h_diff_std_list.append(np.squeeze(np.array(
+                    [np.sqrt(varis[0]) - np.sqrt(varis_exp[0]),
+                     np.sqrt(varis[1]) - np.sqrt(varis_exp[1]),
+                     np.sqrt(varis[2]) - np.sqrt(varis_exp[2]),
+                     np.sqrt(varis[3]) - np.sqrt(varis_exp[3])]
+                    )))
 
             """ Plot the results.
             """
@@ -592,7 +572,7 @@ for id_iter in range(nb_iter):
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 hists[('neg', 1)] = axs[0].hist(g_fair[('neg', 1)].flatten(), 50, facecolor='yellow',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[0].axvline(x=c1-c2, color='red')
+                axs[0].axvline(x=threshold, color='red')
                 axs[0].set_title("fair LS-SVM")
 
                 axs[1].hist(g_unfair[('pos', 0)].flatten(), 50, facecolor='blue', alpha=0.4,
@@ -603,12 +583,12 @@ for id_iter in range(nb_iter):
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 axs[1].hist(g_unfair[('neg', 1)].flatten(), 50, facecolor='yellow', alpha=0.4,
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[1].axvline(x=c1-c2, color='red')
+                axs[1].axvline(x=threshold, color='red')
                 axs[1].set_title("unfair LS-SVM")
                 
                 ### Associated theoretical gaussian
                 colors = ['b', 'g', 'r', 'y']
-                space = np.linspace(c1 - c2 - 8*np.sqrt(varis[0]), c1 - c2 + 8*np.sqrt(varis[0]), 300)
+                space = np.linspace(threshold - 8*np.sqrt(varis[0]), threshold + 8*np.sqrt(varis[0]), 300)
                 for a in range(k):
                     axs[0].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
                     axs[0].plot(space, stats.norm.pdf(space, means_exp[a], np.sqrt(varis[a])), color=colors[a], linestyle='-.')
