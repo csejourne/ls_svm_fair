@@ -245,7 +245,7 @@ def decision_unfair(X, b, alpha, sigma, x_q):
 
     return pred
 
-def comp_fairness_constraints(preds, ind_dict, with_int=False):
+def comp_fair_expec_constraints(preds, ind_dict, with_int=False):
     """
     Computes the value of the fairness constraints, to see how well they are respected by `pred_func`.
     NOTE: this function computes the approximated expectation of conditional variables, not the probabilities of errors.
@@ -261,18 +261,59 @@ def comp_fairness_constraints(preds, ind_dict, with_int=False):
     if with_int:
         preds = np.sign(preds)
 
+    fair_expec_const = {}
     # Positive constraint
     card0 = np.sum(ind_dict[('pos', 0)])
     card1 = np.sum(ind_dict[('pos', 1)])
-    pos_const = 1/card0 * np.sum(np.squeeze(ind_dict[('pos', 0)]) * preds) \
-            - 1/card1 * np.sum(np.squeeze(ind_dict[('pos', 1)]) * preds)
+    fair_expec_const[('pos', 0)] = 1/card0 * np.sum(np.squeeze(ind_dict[('pos', 0)]) * preds)
+    fair_expec_const[('pos', 1)] = 1/card1 * np.sum(np.squeeze(ind_dict[('pos', 1)]) * preds)
     # Negative constraint
     card0 = np.sum(ind_dict[('neg', 0)])
     card1 = np.sum(ind_dict[('neg', 1)])
-    neg_const = 1/card0 * np.sum(np.squeeze(ind_dict[('neg', 0)]) * preds) \
-            - 1/card1 * np.sum(np.squeeze(ind_dict[('neg', 1)]) * preds)
+    fair_expec_const[('neg', 0)] = 1/card0 * np.sum(np.squeeze(ind_dict[('neg', 0)]) * preds)
+    fair_expec_const[('neg', 1)] = 1/card1 * np.sum(np.squeeze(ind_dict[('neg', 1)]) * preds)
 
-    return pos_const, neg_const
+    return fair_expec_const
+
+def comp_fair_prob_constraints(preds, ind_dict):
+    """
+    Computes the value of the fairness constraints w.r.t TO PROBABILITIES, to see how well they are respected by `pred_func`.
+    The equations are (from Solomon book):
+        * P(R = 1 | Y=1, S=0) = P(R = 1 | Y=1, S=1) 
+        * P(R = 1 | Y=0, S=0) = P(R = 1 | Y=0, S=1) 
+
+    Args:
+        preds: (array 1D) predictions to be assessed.
+        ind_dict: as specified in above functions.
+        with_int: (bool) whether to compute the constraints for the output (real) or when taking the sign.
+
+    returns:
+        dictionary with probabilities
+    """ 
+    preds = np.sign(preds) # we are interested in integer value only in this case.
+    fair_prob_const = {}
+
+    # Positive constraint
+    card0 = np.sum(ind_dict[('pos', 0)])
+    card1 = np.sum(ind_dict[('pos', 1)])
+    pos_sens_0 = np.squeeze(ind_dict[('pos', 0)]) * preds
+    pos_sens_0[pos_sens_0 < 0] = 0 #we keep only the positive values
+    pos_sens_1 = np.squeeze(ind_dict[('pos', 1)]) * preds
+    pos_sens_1[pos_sens_1 < 0] = 0 #we keep only the positive values
+    fair_prob_const[('pos', 0)] = 1/card0 * np.sum(pos_sens_0)
+    fair_prob_const[('pos', 1)] = 1/card1 * np.sum(pos_sens_0)
+
+    # Negative constraint
+    card0 = np.sum(ind_dict[('neg', 0)])
+    card1 = np.sum(ind_dict[('neg', 1)])
+    neg_sens_0 = np.squeeze(ind_dict[('neg', 0)]) * preds
+    neg_sens_0[neg_sens_0 < 0] = 0 #we keep only the negitive values
+    neg_sens_1 = np.squeeze(ind_dict[('neg', 1)]) * preds
+    neg_sens_1[neg_sens_1 < 0] = 0 #we keep only the negitive values
+    fair_prob_const[('neg', 0)] = 1/card0 * np.sum(neg_sens_0)
+    fair_prob_const[('neg', 1)] = 1/card1 * np.sum(neg_sens_0)
+
+    return fair_prob_const
     
 def get_metrics(preds, y, ind_dict):
     """

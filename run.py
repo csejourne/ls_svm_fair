@@ -14,7 +14,8 @@ from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, buil
                 build_C_1, build_C_sqrt_n, build_C_n, build_D_1, build_D_sqrt_n, \
                 build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
                 build_Delta, build_F_n, build_tilde_F_n, decision_fair, decision_unfair, \
-                comp_fairness_constraints, get_metrics, missclass_errors_theo, missclass_errors_exp, \
+                comp_fair_expec_constraints, comp_fair_prob_constraints, \
+                get_metrics, missclass_errors_theo, missclass_errors_exp, \
                 missclass_errors_zh, tot_errors
 
 
@@ -472,6 +473,7 @@ for id_iter in range(nb_iter):
 
                     assert g_fair.keys() == ind_dict_test.keys()
                     ### Compute raw predictions in $\R$
+                    #NOTE: preds_fair_app may not be useful, as we do approximations only for the theoretical curves?
                     preds_fair = pred_function_fair(X_test)
                     preds_fair_app = pred_function_fair_app(X_test)
                     preds_unfair = pred_function_unfair(X_test)
@@ -490,14 +492,15 @@ for id_iter in range(nb_iter):
                     #threshold = float(c1 - c2 - b_sqrt_n)
                     threshold = float(c1 - c2)
                     preds_fair = preds_fair - (threshold) # remove threshold
-                    preds_fair_app = preds_fair_app - (threshold) # remove threshold
+                    preds_fair_app = preds_fair_app - (threshold- b_sqrt_n) # remove threshold
                     preds_unfair = preds_unfair - (threshold) # remove threshold
                     
                     ### Compare how well both predictions function satisfy fairness properties.
+                    #TODO: change the following function so we can use all the loops.
                     results_fair = get_metrics(preds_fair, y_test, ind_dict_test)
                     results_unfair = get_metrics(preds_unfair, y_test, ind_dict_test)
-                    pos_const_fair, neg_const_fair = comp_fairness_constraints(preds_fair, ind_dict_test)
-                    pos_const_fair_int, neg_const_fair_int = comp_fairness_constraints(preds_fair, ind_dict_test, with_int=True)
+                    fair_expecs_const = comp_fair_expec_constraints(preds_fair, ind_dict_test)
+                    fair_expecs_const_int = comp_fair_expec_constraints(preds_fair, ind_dict_test, with_int=True)
 
                 ### Study the results
                 # Means
@@ -571,7 +574,7 @@ for id_iter in range(nb_iter):
             hists = {}
             if plot_test:
                 ### Predictions distributions.
-                fig, axs = plt.subplots(2)
+                fig, axs = plt.subplots(3)
                 hists[('pos', 0)] = axs[0].hist(g_fair[('pos', 0)].flatten(), 50, facecolor='blue',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 hists[('pos', 1)] = axs[0].hist(g_fair[('pos', 1)].flatten(), 50, facecolor='green',
@@ -584,16 +587,27 @@ for id_iter in range(nb_iter):
                 axs[0].axvline(x=c1 - c2, color='red')
                 axs[0].set_title("fair LS-SVM")
 
-                axs[1].hist(g_unfair[('pos', 0)].flatten(), 50, facecolor='blue', alpha=0.4,
+                axs[1].hist(g_fair_app[('pos', 0)].flatten(), 50, facecolor='blue', alpha=0.4,
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[1].hist(g_unfair[('pos', 1)].flatten(), 50, facecolor='green', alpha=0.4,
+                axs[1].hist(g_fair_app[('pos', 1)].flatten(), 50, facecolor='green', alpha=0.4,
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[1].hist(g_unfair[('neg', 0)].flatten(), 50, facecolor='red', alpha=0.4,
+                axs[1].hist(g_fair_app[('neg', 0)].flatten(), 50, facecolor='red', alpha=0.4,
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[1].hist(g_unfair[('neg', 1)].flatten(), 50, facecolor='yellow', alpha=0.4,
+                axs[1].hist(g_fair_app[('neg', 1)].flatten(), 50, facecolor='yellow', alpha=0.4,
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 axs[1].axvline(x=threshold, color='red')
-                axs[1].set_title("unfair LS-SVM")
+                axs[1].set_title("fair_app LS-SVM")
+                
+                axs[2].hist(g_unfair[('pos', 0)].flatten(), 50, facecolor='blue', alpha=0.4,
+                                density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                axs[2].hist(g_unfair[('pos', 1)].flatten(), 50, facecolor='green', alpha=0.4,
+                                density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                axs[2].hist(g_unfair[('neg', 0)].flatten(), 50, facecolor='red', alpha=0.4,
+                                density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                axs[2].hist(g_unfair[('neg', 1)].flatten(), 50, facecolor='yellow', alpha=0.4,
+                                density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                axs[2].axvline(x=threshold, color='red')
+                axs[2].set_title("unfair LS-SVM")
                 
                 ### Associated theoretical gaussian
                 colors = ['b', 'g', 'r', 'y']
@@ -601,7 +615,9 @@ for id_iter in range(nb_iter):
                 for a in range(k):
                     axs[0].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
                     axs[0].plot(space, stats.norm.pdf(space, means_exp[a], np.sqrt(varis[a])), color=colors[a], linestyle='-.')
-                    axs[1].plot(space, stats.norm.pdf(space, - expecs_zh[a], np.sqrt(varis_zh[a])), color=colors[a])
+                    axs[1].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
+                    axs[1].plot(space, stats.norm.pdf(space, means_exp[a], np.sqrt(varis[a])), color=colors[a], linestyle='-.')
+                    axs[2].plot(space, stats.norm.pdf(space, - expecs_zh[a], np.sqrt(varis_zh[a])), color=colors[a])
                 
                 # Create legend
                 handles = [Rectangle((0, 0), 1,1,color=c) for c in ['blue', 'green', 'red', 'yellow']]
