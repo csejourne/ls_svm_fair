@@ -251,7 +251,7 @@ def comp_fair_expec_constraints(preds, ind_dict, with_int=False):
     NOTE: this function computes the approximated expectation of conditional variables, not the probabilities of errors.
 
     Args:
-        preds: (array 1D) predictions to be assessed.
+        preds: (array 2D) predictions to be assessed.
         ind_dict: as specified in above functions.
         with_int: (bool) whether to compute the constraints for the output (real) or when taking the sign.
 
@@ -261,17 +261,21 @@ def comp_fair_expec_constraints(preds, ind_dict, with_int=False):
     if with_int:
         preds = np.sign(preds)
 
+    for key in ind_dict.keys():
+        assert  ind_dict[key].shape[1] == 1
+
+    nb_loops, _ = preds.shape
     fair_expec_const = {}
     # Positive constraint
-    card0 = np.sum(ind_dict[('pos', 0)])
-    card1 = np.sum(ind_dict[('pos', 1)])
-    fair_expec_const[('pos', 0)] = 1/card0 * np.sum(np.squeeze(ind_dict[('pos', 0)]) * preds)
-    fair_expec_const[('pos', 1)] = 1/card1 * np.sum(np.squeeze(ind_dict[('pos', 1)]) * preds)
+    card0 = np.sum(ind_dict[('pos', 0)]) * nb_loops
+    card1 = np.sum(ind_dict[('pos', 1)]) * nb_loops
+    fair_expec_const[('pos', 0)] = 1/card0 * np.sum(preds * ind_dict[('pos', 0)].T)
+    fair_expec_const[('pos', 1)] = 1/card1 * np.sum(preds * ind_dict[('pos', 1)].T)
     # Negative constraint
-    card0 = np.sum(ind_dict[('neg', 0)])
-    card1 = np.sum(ind_dict[('neg', 1)])
-    fair_expec_const[('neg', 0)] = 1/card0 * np.sum(np.squeeze(ind_dict[('neg', 0)]) * preds)
-    fair_expec_const[('neg', 1)] = 1/card1 * np.sum(np.squeeze(ind_dict[('neg', 1)]) * preds)
+    card0 = np.sum(ind_dict[('neg', 0)]) * nb_loops
+    card1 = np.sum(ind_dict[('neg', 1)]) * nb_loops
+    fair_expec_const[('neg', 0)] = 1/card0 * np.sum(preds * ind_dict[('neg', 0)].T)
+    fair_expec_const[('neg', 1)] = 1/card1 * np.sum(preds * ind_dict[('neg', 1)].T)
 
     return fair_expec_const
 
@@ -291,37 +295,43 @@ def comp_fair_prob_constraints(preds, ind_dict):
         dictionary with probabilities
     """ 
     preds = np.sign(preds) # we are interested in integer value only in this case.
+    nb_loops, _ = preds.shape
     fair_prob_const = {}
 
+    for key in ind_dict.keys():
+        assert  ind_dict[key].shape[1] == 1
+
     # Positive constraint
-    card0 = np.sum(ind_dict[('pos', 0)])
-    card1 = np.sum(ind_dict[('pos', 1)])
-    pos_sens_0 = np.squeeze(ind_dict[('pos', 0)]) * preds
+    card0 = np.sum(ind_dict[('pos', 0)]) * nb_loops
+    card1 = np.sum(ind_dict[('pos', 1)]) * nb_loops
+    pos_sens_0 = preds * ind_dict[('pos', 0)].T 
     pos_sens_0[pos_sens_0 < 0] = 0 #we keep only the positive values
-    pos_sens_1 = np.squeeze(ind_dict[('pos', 1)]) * preds
+    pos_sens_1 = preds * ind_dict[('pos', 1)].T 
     pos_sens_1[pos_sens_1 < 0] = 0 #we keep only the positive values
     fair_prob_const[('pos', 0)] = 1/card0 * np.sum(pos_sens_0)
-    fair_prob_const[('pos', 1)] = 1/card1 * np.sum(pos_sens_0)
+    fair_prob_const[('pos', 1)] = 1/card1 * np.sum(pos_sens_1)
 
     # Negative constraint
-    card0 = np.sum(ind_dict[('neg', 0)])
-    card1 = np.sum(ind_dict[('neg', 1)])
-    neg_sens_0 = np.squeeze(ind_dict[('neg', 0)]) * preds
+    card0 = np.sum(ind_dict[('neg', 0)]) * nb_loops
+    card1 = np.sum(ind_dict[('neg', 1)]) * nb_loops
+    neg_sens_0 = preds * ind_dict[('neg', 0)].T 
     neg_sens_0[neg_sens_0 < 0] = 0 #we keep only the negitive values
-    neg_sens_1 = np.squeeze(ind_dict[('neg', 1)]) * preds
+    neg_sens_1 = preds * ind_dict[('neg', 1)].T 
     neg_sens_1[neg_sens_1 < 0] = 0 #we keep only the negitive values
     fair_prob_const[('neg', 0)] = 1/card0 * np.sum(neg_sens_0)
-    fair_prob_const[('neg', 1)] = 1/card1 * np.sum(neg_sens_0)
+    fair_prob_const[('neg', 1)] = 1/card1 * np.sum(neg_sens_1)
 
     return fair_prob_const
     
 def get_metrics(preds, y, ind_dict):
     """
+    TODO: refactor this function so that preds can be 2D, like comp_fair_* functions.
     The metrics that interests us.
     * Diff of False Positive Rate (FPR) between the sensitive label.
     * Diff of False Negative Rate (FPR) between the sensitive label.
     * precision
     * recall
+    TODO: change it so preds can be a 2D array? would be more efficient than a loop in `run.py`.
 
     Args:
         preds: 1D array
@@ -481,23 +491,6 @@ def build_V(cardinals, mu_list, cov_list, J, W, M, t):
     V = np.concatenate(V, axis=-1)
 
     return V
-
-#def build_k_x_app(X, tau, mu_list, cov_list, cardinals):
-#    """ Compute the approximation of kernel
-#    Args:
-#        X: (n x p array)
-#        tau: float
-#        mu_list: (list of 1d array)
-#        cov_list: (list of 2d array) (p,p)
-#        cardinals: (list of int or 1d array) 
-#    returns:
-#        k_x_app
-#    """
-#    W = extract_W(X, mu_list, cardinals)
-#    expec = [np.tile(np.trace(cov_list[i]), [cardinals[i], 1]) for i in range(k)]
-#    expec = np.concatenate(expec)
-#    psi = np.diag(W.T @ W).reshape((-1, 1))
-#    psi = 1/p *(psi - expec)
 
 def build_A_n(tau, k, p, V):
     """
