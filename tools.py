@@ -6,8 +6,7 @@ from sklearn import metrics
 
 
 def one_hot(idx, length):
-    """
-    Create one hot vector with 1 at `idx` and of length `length`
+    """ Create one hot vector with 1 at `idx` and of length `length`
     Args: idx (int or list of ints)
         length (int)
         
@@ -26,8 +25,7 @@ def one_hot(idx, length):
         raise ValueError("Weird type for idx")
 
 def gen_dataset(mu_list, cov_list, cardinals): 
-    """
-    Generate a synthetic dataset on which to work. Consists of two classes each driven by a multidimensional gaussian.
+    """ Generate a synthetic dataset on which to work. Consists of two classes each driven by a multidimensional gaussian.
     We then assign a sensitive attribute to all the population with a correlation.
     Args:
         `mu_list`: (list of length 4 of 1D array) the means of the two classes
@@ -111,8 +109,7 @@ def get_gaussian_kernel(X, sigma):
     return K
 
 def build_system_matrix(X, sigma, gamma, cardinals, nu_list, ind_dict, mode="strict"):
-    """
-    Builds the system matrix to find the lagrangian parameters $b, \lambda_1, \lambda_{-1}, \alpha$ when using fairness
+    """ Builds the system matrix to find the lagrangian parameters $b, \lambda_1, \lambda_{-1}, \alpha$ when using fairness
     constraints.
 
     Args:
@@ -189,8 +186,7 @@ def build_system_matrix(X, sigma, gamma, cardinals, nu_list, ind_dict, mode="str
     return matrix
 
 def decision_fair(X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict, x_q):
-    """
-    Computes the decision function of fairness-enhanced LS-SVM.
+    """ Computes the decision function of fairness-enhanced LS-SVM.
     WARNING: should be used with a low number of queries, otherwise it takes a lot of memory.
     
     Args:
@@ -225,8 +221,7 @@ def decision_fair(X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict, x_q):
     return pred
 
 def decision_unfair(X, b, alpha, sigma, x_q):
-    """
-    Computes the decision function of classical LS-SVM
+    """ Computes the decision function of classical LS-SVM
     
     Args:
         X: (2D array n x p) the training data set
@@ -246,8 +241,7 @@ def decision_unfair(X, b, alpha, sigma, x_q):
     return pred
 
 def comp_fair_expec_constraints(preds, ind_dict, with_int=False):
-    """
-    Computes the value of the fairness constraints, to see how well they are respected by `pred_func`.
+    """ Computes the value of the fairness constraints, to see how well they are respected by `pred_func`.
     NOTE: this function computes the approximated expectation of conditional variables, not the probabilities of errors.
 
     Args:
@@ -280,8 +274,7 @@ def comp_fair_expec_constraints(preds, ind_dict, with_int=False):
     return fair_expec_const
 
 def comp_fair_prob_constraints(preds, ind_dict):
-    """
-    Computes the value of the fairness constraints w.r.t TO PROBABILITIES, to see how well they are respected by `pred_func`.
+    """ Computes the value of the fairness constraints w.r.t TO PROBABILITIES, to see how well they are respected by `pred_func`.
     The equations are (from Solomon book):
         * P(R = 1 | Y=1, S=0) = P(R = 1 | Y=1, S=1) 
         * P(R = 1 | Y=0, S=0) = P(R = 1 | Y=0, S=1) 
@@ -324,9 +317,8 @@ def comp_fair_prob_constraints(preds, ind_dict):
     return fair_prob_const
     
 def get_metrics(preds, y, ind_dict):
-    """
+    """ The metrics that interests us.
     TODO: refactor this function so that preds can be 2D, like comp_fair_* functions.
-    The metrics that interests us.
     * Diff of False Positive Rate (FPR) between the sensitive label.
     * Diff of False Negative Rate (FPR) between the sensitive label.
     * precision
@@ -402,7 +394,7 @@ def extract_W(X, mu_list, cardinals):
     return W
 
 def build_objects(mu_list, cardinals, cov_list):
-    """
+    """ Build some mathematical objects described in the paper.
     Args:
         mu_list: (list of 1d array)
         cardinals: (list of int or 1d array) 
