@@ -754,53 +754,53 @@ def tot_errors(errors, cardinals_list):
 
 """ Objects to debug mathematical formulae
 """
-#class Debug_obj(object):
-#    def __init__(self, obj_list=None):
-#        """ 
-#        Args:
-#        """
-#
-#        if obj_list == None:
-#            self.obj_list = []
-#        else:
-#            self.obj_list = obj_list
-#        self.approxs = {}
-#
-#    def add_new_iter(self):
-#        """Args:
-#            values: list of float
-#        """
-#        self.obj_list.append([])
-#        for k in range(len(self.approxs)):
-#            self.approxs[k].append([])
-#
-#    def add_val(self, val):
-#        """Args:
-#            val: float
-#        """
-#        self.obj_list[-1].append(val)
-#
-#    def add_approxs(self, nb):
-#        for k in range(nb):
-#            self.approxs[k] = []
-#
-#    def add_app_val(self, idx, val):
-#        self.approxs[idx][-1].append(val)
-#
-#    def std_diff(self, approx):
-#        """
-#        Args:
-#            approx: should be a list of list
-#        """
-#        approx = np.array(approx)
-#        obj_list = np.array(self.obj_list)
-#        return np.std(approx - obj_list, axis=0)
-#
-#    def mean_diff(self, approx):
-#        """
-#        Args:
-#            approx: should be a list of list
-#        """
-#        approx = np.array(approx)
-#        obj_list = np.array(self.obj_list)
-#        return np.mean(approx - obj_list, axis=0)
+class Debug_obj(object):
+    def __init__(self, obj_list=None):
+        """ 
+        Args:
+        """
+
+        if obj_list == None:
+            self.obj_list = []
+        else:
+            self.obj_list = obj_list
+        self.approxs = {}
+
+    def add_new_iter(self):
+        """Args:
+            values: list of float
+        """
+        self.obj_list.append([])
+        for k in range(len(self.approxs)):
+            self.approxs[k].append([])
+
+    def add_val(self, val):
+        """Args:
+            val: float
+        """
+        self.obj_list[-1].append(val)
+
+    def add_approxs(self, nb):
+        for k in range(nb):
+            self.approxs[k] = []
+
+    def add_app_val(self, idx, val):
+        self.approxs[idx][-1].append(val)
+
+    def std_diff(self, approx):
+        """
+        Args:
+            approx: should be a list of list
+        """
+        approx = np.array(approx)
+        obj_list = np.array(self.obj_list)
+        return np.std(approx - obj_list, axis=0)
+
+    def mean_diff(self, approx):
+        """
+        Args:
+            approx: should be a list of list
+        """
+        approx = np.array(approx)
+        obj_list = np.array(self.obj_list)
+        return np.mean(approx - obj_list, axis=0)
