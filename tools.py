@@ -652,22 +652,22 @@ def build_Delta(ind_dict):
 def build_F_n(Delta, E_app):
     Delta_pos = Delta[:, 0].reshape((-1, 1))
     Delta_neg = Delta[:, 1].reshape((-1, 1))
-    a11 = float(Delta_neg.T @ E_app @ Delta_neg)
-    a12 = float(-Delta_pos.T @ E_app @ Delta_neg)
-    a21 = float(-Delta_pos.T @ E_app @ Delta_neg)
-    a22 = float(Delta_pos.T @ E_app @ Delta_pos)
-    F_n = np.array([[a11, a12], [a21, a22]])
+    a11 = float(Delta_pos.T @ E_app @ Delta_pos)
+    a12 = float(Delta_pos.T @ E_app @ Delta_neg)
+    a21 = float(Delta_neg.T @ E_app @ Delta_pos)
+    a22 = float(Delta_neg.T @ E_app @ Delta_neg)
+    F_n = np.array([[a22, -a21], [-a12, a11]])
     F_n = 1/(a11 * a22 - a12*a21) * F_n
     return F_n
 
 def build_tilde_F_n(Delta, E_app):
     Delta_pos = Delta[:, 0].reshape((-1, 1))
     Delta_neg = Delta[:, 1].reshape((-1, 1))
-    a11 = float(Delta_neg.T @ E_app @ Delta_neg)
-    a12 = float(-Delta_pos.T @ E_app @ Delta_neg)
-    a21 = float(-Delta_pos.T @ E_app @ Delta_neg)
-    a22 = float(Delta_pos.T @ E_app @ Delta_pos)
-    tilde_F_n = np.array([[a11, a12], [a21, a22]])
+    a11 = float(Delta_pos.T @ E_app @ Delta_pos)
+    a12 = float(Delta_pos.T @ E_app @ Delta_neg)
+    a21 = float(Delta_pos.T @ E_app @ Delta_neg)
+    a22 = float(Delta_neg.T @ E_app @ Delta_neg)
+    tilde_F_n = np.array([[a22, -a21], [-a12, a11]])
     return tilde_F_n
 
 def missclass_errors_theo(expecs, varis, thresh):
@@ -751,3 +751,56 @@ def tot_errors(errors, cardinals_list):
     for i in range(len(errors)):
         tot_err.append(np.sum(prop*errors[i]))
     return tot_err
+
+""" Objects to debug mathematical formulae
+"""
+#class Debug_obj(object):
+#    def __init__(self, obj_list=None):
+#        """ 
+#        Args:
+#        """
+#
+#        if obj_list == None:
+#            self.obj_list = []
+#        else:
+#            self.obj_list = obj_list
+#        self.approxs = {}
+#
+#    def add_new_iter(self):
+#        """Args:
+#            values: list of float
+#        """
+#        self.obj_list.append([])
+#        for k in range(len(self.approxs)):
+#            self.approxs[k].append([])
+#
+#    def add_val(self, val):
+#        """Args:
+#            val: float
+#        """
+#        self.obj_list[-1].append(val)
+#
+#    def add_approxs(self, nb):
+#        for k in range(nb):
+#            self.approxs[k] = []
+#
+#    def add_app_val(self, idx, val):
+#        self.approxs[idx][-1].append(val)
+#
+#    def std_diff(self, approx):
+#        """
+#        Args:
+#            approx: should be a list of list
+#        """
+#        approx = np.array(approx)
+#        obj_list = np.array(self.obj_list)
+#        return np.std(approx - obj_list, axis=0)
+#
+#    def mean_diff(self, approx):
+#        """
+#        Args:
+#            approx: should be a list of list
+#        """
+#        approx = np.array(approx)
+#        obj_list = np.array(self.obj_list)
+#        return np.mean(approx - obj_list, axis=0)
