@@ -787,20 +787,20 @@ class Debug_obj(object):
     def add_app_val(self, idx, val):
         self.approxs[idx][-1].append(val)
 
-    def std_diff(self, approx):
+    def std_diff(self, idx):
         """
         Args:
-            approx: should be a list of list
+            idx: index of 
         """
-        approx = np.array(approx)
+        approx = np.array(self.approxs[idx])
         obj_list = np.array(self.obj_list)
         return np.std(approx - obj_list, axis=0)
 
-    def mean_diff(self, approx):
+    def mean_diff(self, idx):
         """
         Args:
             approx: should be a list of list
         """
-        approx = np.array(approx)
+        approx = np.array(self.approxs[idx])
         obj_list = np.array(self.obj_list)
         return np.mean(approx - obj_list, axis=0)
