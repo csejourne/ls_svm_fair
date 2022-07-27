@@ -11,12 +11,13 @@ from pathlib import Path
 from functools import partial
 from scipy.spatial.distance import cdist, pdist, squareform
 from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, build_A_1_11, \
-                build_C_1, build_C_sqrt_n, build_C_n, build_D_1, build_D_sqrt_n, \
-                build_D_n, one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
+                build_C_1, build_C_sqrt_n, build_C_n, \
+                one_hot, gen_dataset, get_gaussian_kernel, build_system_matrix, \
                 build_Delta, build_F_n, build_tilde_F_n, decision_fair, decision_unfair, \
                 comp_fair_expec_constraints, comp_fair_prob_constraints, \
                 get_metrics, missclass_errors_theo, missclass_errors_exp, \
-                missclass_errors_zh, tot_errors
+                missclass_errors_zh, tot_errors, Debug_obj
+
 
 
 from tools import f, f_p, f_pp, build_objects
@@ -34,21 +35,26 @@ save_arr = False
 save_arr_test = False
 get_arr = False
 get_bk = False
-do_test = True
-plot_test = True
+do_test = False
+plot_test = False
 
 """
 We iterate over a high number of experiences to better evaluate the orders.
 """
-nb_iter = 1
+nb_iter = 300
 nb_tests = 1
 nb_loops_test = 50
 cardinals_test = [500, 500, 500, 500] # the base, we apply a coefficient later in the code
 n_test = sum(cardinals_test)
 
+### classes for debugging purposes
+b_debug = Debug_obj()
+b_debug.add_approxs(3) # 2 different approximation
+scal_debug = Debug_obj()
+scal_debug.add_approxs(3) # 2 different approximation
+
 ### Lists for debuggin purposes
 h_lambdas_list = []
-h_b_list = []
 h_alpha_list = []
 h_alpha_app_list = []
 h_alpha_diff_list = []
@@ -58,9 +64,6 @@ h_lambdas_app_list = []
 h_lambdas_app2_list = []
 h_lambdas_diff_list = []
 h_lambdas_diff2_list = []
-h_b_list = []
-h_b_app_list = []
-h_b_diff_list = []
 h_num_list = []
 h_denom_list = []
 h_num_app_list = []
@@ -94,15 +97,21 @@ for id_iter in range(nb_iter):
     cov_scal = 1
     print("Experiment begin")
     #print(f"cov_scal is {cov_scal}")
-    cardinals_list = [[42, 22, 66, 116]]
+    card_tmp = np.array([42, 22, 66, 116])
+    #cardinals_list = [list(card_tmp), list(2*card_tmp), list(4*card_tmp)]
+    cardinals_list = [list(card_tmp), list(2*card_tmp)]
     #cardinals_list = [[61, 61, 61, 61]]
     #cardinals_list = [[60, 60, 60, 60], [120, 120, 120, 120]]
     #p_list = [256, 512]
     #cardinals_list = [[30, 30, 30, 30], [60, 60, 60, 60]]
     #p_list = [128, 256]
     #cardinals_list = [[60, 60, 60, 60]]
-    p_list = [256]
+    p_list = [256, 512]
     
+    # Monitoring purposes with classes
+    b_debug.add_new_iter()
+    scal_debug.add_new_iter()
+
     # Monitoring purposes.
     A_1_list = []
     A_sqrt_n_list = []
@@ -110,15 +119,11 @@ for id_iter in range(nb_iter):
     C_1_list = []
     C_sqrt_n_list = []
     C_n_list = []
-    D_1_list = []
-    D_sqrt_n_list = []
-    D_n_list = []
     K_diff_list = []
     E_list = []
     Om_list = []
     var_list = []
     mean_list = []
-    tmp_list = []
     alpha_list = []
     alpha_app_list = []
     alpha_app2_list = []
@@ -128,9 +133,6 @@ for id_iter in range(nb_iter):
     lambdas_app2_list = []
     lambdas_diff_list = []
     lambdas_diff2_list = []
-    b_list = np.array([])
-    b_app_list = np.array([])
-    b_diff_list = np.array([])
     num_list = []
     denom_list = []
     num_app_list = []
@@ -183,9 +185,10 @@ for id_iter in range(nb_iter):
 
         ### Fairness setup
         beta_pos = 0.9
+        #beta_pos = 1
         beta_neg = beta_pos
-        noise_pos = rng.multivariate_normal(np.zeros(p), np.eye(p))
-        noise_neg = rng.multivariate_normal(np.zeros(p), np.eye(p))
+        noise_pos = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
+        noise_neg = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
         mu_list = [mean_scal * one_hot(0, p),
                    beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
                    mean_scal * one_hot(1, p),
@@ -273,13 +276,15 @@ for id_iter in range(nb_iter):
         C = C_n + C_sqrt_n
         
         ## $B_{22}$ in the companion paper.
+        Om = np.linalg.pinv(B_22)
         P = np.eye(n) - 1/n * np.ones((n,n))
         L = gamma / (1 +gamma * f(tau)) * (np.eye(n) + f(tau)*gamma * P)
         Q = 2*f_p(tau)/n**2 * (A_1 + 1/p * W @ W.T + \
                     2*f_p(tau)/n * A_sqrt_n @ L @ A_sqrt_n)
-        #E = n/gamma * (np.eye(n) - n/gamma * Om)
+        E = n/gamma * (np.eye(n) - n/gamma * Om)
+        Om_app = L/n + 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L + L @ (Q - beta/n**2*np.eye(n)) @ L
         E_app = f(tau)/(1 + gamma*f(tau)) * np.ones((n,n)) \
-                - 1/gamma**2 * (2*f_p(tau) * L@A_sqrt_n@L \
+                - 1/gamma**2 * (2*f_p(tau) * L@A_sqrt_n@L 
                 + L @ (n**2 * Q - beta * np.eye(n)) @ L)
         Delta = build_Delta(ind_dict)
         Delta_pos = Delta[:, 0].reshape((-1, 1))
@@ -310,23 +315,44 @@ for id_iter in range(nb_iter):
                     psi@t.T@ J.T)
                 ]
         F_n = build_F_n(Delta, E_app)
-        tilde_F_n_app = build_tilde_F_n(Delta, E_app)
-        tilde_G_n = build_tilde_F_n(Delta, mat_n)
-        tilde_G_sqrt_n = build_tilde_F_n(Delta, mat_sqrt_n)
+        tilde_F_n = build_tilde_F_n(Delta, E_app)
+        tilde_G_n = build_tilde_F_n(Delta, -mat_n)
+        tilde_G_sqrt_n = build_tilde_F_n(Delta, -mat_sqrt_n)
         det_tilde_G_n = np.linalg.det(tilde_G_n)
-        det_tilde_F_n_app = np.linalg.det(tilde_F_n_app)
+        det_tilde_F_n = np.linalg.det(tilde_F_n)
         factor = ones_k.T @ n_signed / n
 
         ###### Computes approximations
+        ### computes approximation of A_12 A_22^{-1} A_21
+        #A_22_inv_app = 
+        approx = gamma/(1+gamma*f(tau)) + 1/det_tilde_G_n * (gamma*f_p(tau)/(1+gamma*f(tau)))**2 * (
+                1/p * t.T @ J.T @ Delta @ (tilde_G_n + tilde_G_sqrt_n)@Delta.T @J@t
+              + 1/np.sqrt(p)*t.T @ J.T@Delta@tilde_G_n@(Delta.T @ psi - 2/(n*p)*Delta.T @ J @A_1_11@vec_prop)
+              + 1/np.sqrt(p)*(Delta.T @ psi - 2/(n*p)*Delta.T @ J @A_1_11@vec_prop).T @ tilde_G_n@Delta.T@J@t
+              )
+        scal_debug.add_val(float(A_12 @ np.linalg.pinv(A_22) @ A_21))
+        scal_debug.add_app_val(0, float(approx))
+        scal_debug.add_app_val(1, float(
+                ones_n.T @ (C_n + C_sqrt_n).T@Delta@F_n@Delta.T@(C_n+C_sqrt_n)@ones_n + 1/n*ones_n.T@L@ones_n
+                + 2*f_p(tau)/n**2 * ones_n.T @ L @ A_sqrt_n@L@ones_n + ones_n.T@L@(Q-beta/n**2*np.eye(n))@ones_n)
+                )
+        scal_debug.add_app_val(2, float(
+                ones_n.T @ (C_n + C_sqrt_n).T@Delta@F_n@Delta.T@(C_n+C_sqrt_n)@ones_n + 1/n*ones_n.T@L@ones_n)
+                )
+
         ### Compute approximation of `b`
         b_sqrt_n = (1 + gamma*f(tau))/(gamma*f_p(tau)**2) * det_tilde_G_n + 1/p * t.T@J.T@Delta@tilde_G_n@Delta.T @ J @ t
         b_sqrt_n = 1/b_sqrt_n
+
         b_sqrt_n = b_sqrt_n * (
                 1/np.sqrt(p) * t.T @ J.T @ Delta @ tilde_G_n @ (
-                2*(1+gamma*f(tau))/(n*p) * Delta.T @ J @ A_1_11 @ (factor*vec_prop - n_signed) + gamma*f_p(tau)/(n*p) * t.T @ n_signed * Delta.T @J@t)
-                - (1+gamma*f(tau))*det_tilde_G_n * t.T @ n_signed / (n*f_p(tau)*np.sqrt(p))
+                + 2*(1+gamma*f(tau))/(n*p) * Delta.T @ J @ A_1_11 @ (factor*vec_prop - n_signed) - gamma*f_p(tau)/(n*p) * t.T @ n_signed * Delta.T @J@t)
                 )
+        b_sqrt_n = float(b_sqrt_n)
+
         b_app = ones_k.T @ n_signed / n + b_sqrt_n
+        b_debug.add_val(b)
+        b_debug.add_app_val(0, float(b_app))
 
         ### Compute approximation of $\lambda_1, \lambda_{-1}$
         # Build the R_n vector
@@ -345,6 +371,12 @@ for id_iter in range(nb_iter):
 
         alpha_app = gamma/n * P @ y + alpha_n_3_2 *ones_n
 
+#### Try out some stuff
+#std_b_diff = b_debug.std_diff(0)
+#std_b_diff2 = b_debug.std_diff(0)
+#mean_b_diff = b_debug.mean_diff(0)
+#mean_b_diff2 = b_debug.mean_diff(0)
+        #exit()
         ### Compute the expectations `E_a`
         D_cal = (gamma*f_p(tau)/n * y.T @ P + f_p(tau)*R_n.T @ Delta.T) @ psi \
                 + (gamma*f_pp(tau)/(2*n)* y.T @ P + f_pp(tau)/2*R_n.T @ Delta.T) @ psi**2 \
@@ -420,9 +452,6 @@ for id_iter in range(nb_iter):
         """ Store approximations
         """
         cumsum_cardinals = np.append(0, np.cumsum(cardinals))
-        b_list = np.append(b_list, b)
-        b_app_list = np.append(b_app_list, b_app)
-        b_diff_list = np.append(b_diff_list, b - b_app)
         alpha_list.append(np.copy(alpha))
         alpha_app_list.append(np.copy(alpha_app))
         alpha_diff_list.append(np.copy(alpha - alpha_app))
@@ -446,7 +475,12 @@ for id_iter in range(nb_iter):
                 # Test different formula for the threshold. 
                 #TODO: check which one should be theoretically (remove b_sqrt_n ?)
                 #threshold = float(c1 - c2 - b_sqrt_n)
-                threshold = float(c1 - c2)
+                #threshold = float(c1 - c2)
+                threshold = float(factor + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed 
+                        + b_sqrt_n 
+                        + n * alpha_n_3_2 * f(tau)
+                        + f_p(tau)/np.sqrt(p) * R_n.T @ Delta.T @ J @ t
+                        )
 
                 #### For storing results
                 ## Predictions
@@ -565,7 +599,7 @@ for id_iter in range(nb_iter):
                 hists[('neg', 1)] = axs[0].hist(g_fair[('neg', 1)].flatten(), 50, facecolor='yellow',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 #axs[0].axvline(x=threshold, color='red')
-                axs[0].axvline(x=c1 - c2, color='red')
+                axs[0].axvline(x=threshold, color='red')
                 axs[0].set_title("fair LS-SVM")
                 
                 axs[1].hist(g_unfair[('pos', 0)].flatten(), 50, facecolor='blue', alpha=0.4,
@@ -596,9 +630,6 @@ for id_iter in range(nb_iter):
 
     ### Store history of iterations.
     cumsum_cardinals = [np.append(0, np.cumsum(cardinals_list[i])) for i in range(len(p_list))]
-    h_b_list.append(b_list)
-    h_b_app_list.append(b_app_list)
-    h_b_diff_list.append(b_diff_list)
     h_lambdas_list.append(lambdas_list)
     h_lambdas_app_list.append(lambdas_app_list)
     h_lambdas_app2_list.append(lambdas_app2_list)
