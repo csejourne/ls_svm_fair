@@ -35,21 +35,23 @@ save_arr = False
 save_arr_test = False
 get_arr = False
 get_bk = False
-do_test = False
-plot_test = False
+do_test = True
+plot_test = True
 
 """
 We iterate over a high number of experiences to better evaluate the orders.
 """
-nb_iter = 300
+nb_iter = 1
 nb_tests = 1
-nb_loops_test = 50
+nb_loops_test = 25
 cardinals_test = [500, 500, 500, 500] # the base, we apply a coefficient later in the code
 n_test = sum(cardinals_test)
 
 ### classes for debugging purposes
-b_debug = Debug_obj()
-b_debug.add_approxs(3) # 2 different approximation
+r1_debug = Debug_obj()
+r1_debug.add_approxs(1) # 2 different approximation
+r2_debug = Debug_obj()
+r2_debug.add_approxs(1) # 2 different approximation
 scal_debug = Debug_obj()
 scal_debug.add_approxs(3) # 2 different approximation
 
@@ -109,7 +111,8 @@ for id_iter in range(nb_iter):
     p_list = [256, 512]
     
     # Monitoring purposes with classes
-    b_debug.add_new_iter()
+    r1_debug.add_new_iter()
+    r2_debug.add_new_iter()
     scal_debug.add_new_iter()
 
     # Monitoring purposes.
@@ -351,31 +354,28 @@ for id_iter in range(nb_iter):
         b_sqrt_n = float(b_sqrt_n)
 
         b_app = ones_k.T @ n_signed / n + b_sqrt_n
-        b_debug.add_val(b)
-        b_debug.add_app_val(0, float(b_app))
 
         ### Compute approximation of $\lambda_1, \lambda_{-1}$
         # Build the R_n vector
-        R_n = 1/det_tilde_G_n * tilde_G_n @ (gamma*f_p(tau)/(1+gamma*f(tau)) *
+        R_n = -1/det_tilde_G_n * tilde_G_n @ (gamma*f_p(tau)/(1+gamma*f(tau)) *
                 (
                 2/(n*p) * (1+gamma*f(tau))* Delta.T @ J @ A_1_11 @ (factor*vec_prop - n_signed) 
                 - gamma*f_p(tau)/(n*p) * t.T @ n_signed * Delta.T @ J @ t 
                 - b_sqrt_n/np.sqrt(p) * Delta.T @ J @ t)
                 )
+        r1_debug.add_val(lambda_pos)
+        r1_debug.add_app_val(0, R_n[0,0])
+        r2_debug.add_val(lambda_neg)
+        r2_debug.add_app_val(0, R_n[1,0])
         
         ### Compute approximation of `alpha`
         alpha_n_3_2 = -(gamma*b_sqrt_n*1/(1+gamma*f(tau))*1/n 
                 + 1/n * gamma*f_p(tau)/(1+gamma*f(tau)) * 1/np.sqrt(p) * t.T @ J.T @ Delta @ R_n 
-                + gamma**2*f_p(tau)/(1+gamma*f(tau)) * t.T @ n_signed / (np.sqrt(p)*n**2)
                 )
+        alpha_n_3_2 = float(alpha_n_3_2)
 
         alpha_app = gamma/n * P @ y + alpha_n_3_2 *ones_n
 
-#### Try out some stuff
-#std_b_diff = b_debug.std_diff(0)
-#std_b_diff2 = b_debug.std_diff(0)
-#mean_b_diff = b_debug.mean_diff(0)
-#mean_b_diff2 = b_debug.mean_diff(0)
         #exit()
         ### Compute the expectations `E_a`
         D_cal = (gamma*f_p(tau)/n * y.T @ P + f_p(tau)*R_n.T @ Delta.T) @ psi \
@@ -474,9 +474,9 @@ for id_iter in range(nb_iter):
                 c1 = (cardinals[0] + cardinals[1])/n
                 # Test different formula for the threshold. 
                 #TODO: check which one should be theoretically (remove b_sqrt_n ?)
-                #threshold = float(c1 - c2 - b_sqrt_n)
+                #threshold = float(c1 - c2 + b_sqrt_n)
                 #threshold = float(c1 - c2)
-                threshold = float(factor + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed 
+                threshold = float(factor + 1/2*gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed 
                         + b_sqrt_n 
                         + n * alpha_n_3_2 * f(tau)
                         + f_p(tau)/np.sqrt(p) * R_n.T @ Delta.T @ J @ t
