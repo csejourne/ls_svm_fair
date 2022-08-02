@@ -101,14 +101,16 @@ for id_iter in range(nb_iter):
     #print(f"cov_scal is {cov_scal}")
     card_tmp = np.array([42, 22, 66, 116])
     #cardinals_list = [list(card_tmp), list(2*card_tmp), list(4*card_tmp)]
-    cardinals_list = [list(card_tmp), list(2*card_tmp)]
+    #cardinals_list = [list(card_tmp), list(2*card_tmp)]
+    cardinals_list = [list(card_tmp)]
     #cardinals_list = [[61, 61, 61, 61]]
     #cardinals_list = [[60, 60, 60, 60], [120, 120, 120, 120]]
     #p_list = [256, 512]
     #cardinals_list = [[30, 30, 30, 30], [60, 60, 60, 60]]
     #p_list = [128, 256]
     #cardinals_list = [[60, 60, 60, 60]]
-    p_list = [256, 512]
+    #p_list = [256, 512]
+    p_list = [256]
     
     # Monitoring purposes with classes
     r1_debug.add_new_iter()
@@ -404,11 +406,6 @@ for id_iter in range(nb_iter):
         expecs_zh[2] += 2*c1**2*c2 * D_cal_zh
         expecs_zh[3] += 2*c1**2*c2 * D_cal_zh
 
-        # TODO: NOTE: tau depends on the covariances. If cardinals are equal, its ok, but be careful
-        print("normal covariances")
-        #print("inverted covariances")
-        #cov_list_old = [cov_list[0], cov_list[1], cov_list[2], cov_list[3]]
-        #cov_list = [cov_list_old[1], cov_list_old[0], cov_list_old[3], cov_list_old[2]]
         for a in range(k):
             """
             Formulae for fair LS-SVM
@@ -421,7 +418,7 @@ for id_iter in range(nb_iter):
                             + f_p(tau)/p * R_n.T @ Delta.T @ J)@mu_diff_dist[:, a] \
                 + (2*gamma*f_pp(tau)/(n*p) * (n_signed - factor*vec_prop).T 
                             + 2*f_pp(tau)/p*R_n.T @ Delta.T @ J)@ S[:, a] \
-                + (gamma*f_pp(tau)/(2*n*p)* t.T @ n_signed 
+                + (gamma*f_pp(tau)/(n*p)* t.T @ n_signed 
                             + n*alpha_n_3_2 *f_p(tau)/np.sqrt(p)
                             + f_pp(tau)/p * R_n.T @ Delta.T @ J @ t)*t[a]
             expecs[a] += np.squeeze(tmp + D_cal_x)
@@ -474,13 +471,13 @@ for id_iter in range(nb_iter):
                 c1 = (cardinals[0] + cardinals[1])/n
                 # Test different formula for the threshold. 
                 #TODO: check which one should be theoretically (remove b_sqrt_n ?)
-                #threshold = float(c1 - c2 + b_sqrt_n)
-                #threshold = float(c1 - c2)
-                threshold = float(factor + 1/2*gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed 
-                        + b_sqrt_n 
-                        + n * alpha_n_3_2 * f(tau)
-                        + f_p(tau)/np.sqrt(p) * R_n.T @ Delta.T @ J @ t
-                        )
+                #threshold = float(factor + b_sqrt_n)
+                threshold = float(factor)
+                #threshold = float(factor + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed 
+                #        + b_sqrt_n 
+                #        + n * alpha_n_3_2 * f(tau)
+                #        + f_p(tau)/np.sqrt(p) * R_n.T @ Delta.T @ J @ t
+                #        )
 
                 #### For storing results
                 ## Predictions
@@ -598,7 +595,6 @@ for id_iter in range(nb_iter):
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 hists[('neg', 1)] = axs[0].hist(g_fair[('neg', 1)].flatten(), 50, facecolor='yellow',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                #axs[0].axvline(x=threshold, color='red')
                 axs[0].axvline(x=threshold, color='red')
                 axs[0].set_title("fair LS-SVM")
                 
