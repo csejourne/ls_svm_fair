@@ -388,7 +388,9 @@ for id_iter in range(nb_iter):
         ### own formulae
         expecs = factor * np.ones((k, 1)) \
                 + b_sqrt_n \
-                + D_cal
+                + D_cal \
+                + n*alpha_n_3_2*f(tau) \
+                + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed
         varis = np.zeros((k,1))
         y_list = np.array([1, 1, -1, -1])
         sens_list = np.array([0, 1, 0, 1])
@@ -411,7 +413,7 @@ for id_iter in range(nb_iter):
             Formulae for fair LS-SVM
             """
             ### Compute the expectations `E_a`
-            tmp = (gamma*f_pp(tau)*t.T @ n_signed/(2*n*np.sqrt(p)) 
+            tmp = (gamma*f_pp(tau)*t.T @ n_signed/(n*np.sqrt(p)) 
                     + n*alpha_n_3_2 * f_p(tau) 
                     + f_pp(tau)/np.sqrt(p) * R_n.T @ Delta.T @ J @ t) * np.trace(cov_list[a])/p
             D_cal_x = (gamma*f_p(tau)/(n*p)*(n_signed - factor*vec_prop).T 
@@ -425,7 +427,7 @@ for id_iter in range(nb_iter):
 
             ### Compute the variances `Var_a`
             mu_diff = np.stack([mu_list[b] - mu_list[a] for b in range(k)]).T
-            tmp = 2/p**2 * (gamma*f_pp(tau)/(2*n*np.sqrt(p))*t.T @ n_signed 
+            tmp = 2/p**2 * (gamma*f_pp(tau)/(n*np.sqrt(p))*t.T @ n_signed 
                                 + n*alpha_n_3_2*f_p(tau))**2 * np.trace(cov_list[a] @ cov_list[a])
             varis[a] += np.squeeze(tmp)
 
@@ -472,12 +474,13 @@ for id_iter in range(nb_iter):
                 # Test different formula for the threshold. 
                 #TODO: check which one should be theoretically (remove b_sqrt_n ?)
                 #threshold = float(factor + b_sqrt_n)
-                threshold = float(factor)
-                #threshold = float(factor + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed 
-                #        + b_sqrt_n 
-                #        + n * alpha_n_3_2 * f(tau)
-                #        + f_p(tau)/np.sqrt(p) * R_n.T @ Delta.T @ J @ t
-                #        )
+                #threshold = float(factor)
+                threshold = float(factor 
+                        + b_sqrt_n 
+                        + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed 
+                        + n * alpha_n_3_2 * f(tau)
+                        + D_cal
+                        )
 
                 #### For storing results
                 ## Predictions
@@ -596,6 +599,7 @@ for id_iter in range(nb_iter):
                 hists[('neg', 1)] = axs[0].hist(g_fair[('neg', 1)].flatten(), 50, facecolor='yellow',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 axs[0].axvline(x=threshold, color='red')
+                axs[0].axvline(x=threshold - const_bias, linestyle='-.', color='red')
                 axs[0].set_title("fair LS-SVM")
                 
                 axs[1].hist(g_unfair[('pos', 0)].flatten(), 50, facecolor='blue', alpha=0.4,
