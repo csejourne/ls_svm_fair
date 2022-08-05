@@ -43,7 +43,7 @@ We iterate over a high number of experiences to better evaluate the orders.
 """
 nb_iter = 1
 nb_tests = 1
-nb_loops_test = 25
+nb_loops_test = 50
 cardinals_test = [500, 500, 500, 500] # the base, we apply a coefficient later in the code
 n_test = sum(cardinals_test)
 
@@ -346,14 +346,23 @@ for id_iter in range(nb_iter):
                 )
 
         ### Compute approximation of `b`
-        b_sqrt_n = (1 + gamma*f(tau))/(gamma*f_p(tau)**2) * det_tilde_G_n + 1/p * t.T@J.T@Delta@tilde_G_n@Delta.T @ J @ t
+        #b_sqrt_n = (1 + gamma*f(tau))/(gamma*f_p(tau)**2) * det_tilde_G_n + 1/p * t.T@J.T@Delta@tilde_G_n@Delta.T @ J @ t
+        b_sqrt_n = 1 + (gamma*f_p(tau)**2/((1 + gamma*f(tau)) * det_tilde_G_n) * 1/p * t.T@J.T@Delta@tilde_G_n@Delta.T @ J @ t)
+        #print("det_tilde_G_n: ", det_tilde_G_n)
+        #print("b_sqrt_n_1: ", b_sqrt_n)
         b_sqrt_n = 1/b_sqrt_n
+        #print("b_sqrt_n_2: ", b_sqrt_n)
 
         b_sqrt_n = b_sqrt_n * (
+                gamma*f_p(tau)**2/((1 + gamma*f(tau)) * det_tilde_G_n) * 
                 1/np.sqrt(p) * t.T @ J.T @ Delta @ tilde_G_n @ (
-                + 2*(1+gamma*f(tau))/(n*p) * Delta.T @ J @ A_1_11 @ (factor*vec_prop - n_signed) - gamma*f_p(tau)/(n*p) * t.T @ n_signed * Delta.T @J@t)
+                    + 2*(1+gamma*f(tau))/(n*p) * Delta.T @ J @ A_1_11 @
+                    (factor*vec_prop - n_signed) - gamma*f_p(tau)/(n*p) * t.T @
+                    n_signed * Delta.T @J@t)
+                - gamma*f_p(tau)/(n*np.sqrt(p))*t.T @ n_signed
                 )
         b_sqrt_n = float(b_sqrt_n)
+        #print("b_sqrt_n_3: ", b_sqrt_n)
 
         b_app = ones_k.T @ n_signed / n + b_sqrt_n
 
