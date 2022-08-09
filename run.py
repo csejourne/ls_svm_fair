@@ -35,8 +35,8 @@ save_arr = False
 save_arr_test = False
 get_arr = False
 get_bk = False
-do_test = True
-plot_test = True
+do_test = False
+plot_test = False
 
 """
 We iterate over a high number of experiences to better evaluate the orders.
@@ -194,13 +194,13 @@ for id_iter in range(nb_iter):
         beta_neg = beta_pos
         noise_pos = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
         noise_neg = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
-        mu_list = [mean_scal * one_hot(0, p),
-                   beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
-                   mean_scal * one_hot(1, p),
-                   beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
-                   ]
-        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
-        #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
+        #mu_list = [mean_scal * one_hot(0, p),
+        #           beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
+        #           mean_scal * one_hot(1, p),
+        #           beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
+        #           ]
+        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
+                   mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
         #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
 
@@ -211,8 +211,8 @@ for id_iter in range(nb_iter):
         # covariances from zhenyu's paper
         col = np.array([0.4**l for l in range(p)])
         C_2 = (1+2/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
-        #cov_list = [np.eye(p), np.eye(p), C_2, C_2]
-        cov_list = [np.eye(p), C_2, np.eye(p), C_2]
+        cov_list = [np.eye(p), np.eye(p), C_2, C_2]
+        #cov_list = [np.eye(p), C_2, np.eye(p), C_2]
         #cov_list = [(1 + 2/np.sqrt(p))*np.eye(p), C_2, (1 + 2/np.sqrt(p))*np.eye(p), C_2]
         
         ### Generate data.
@@ -394,7 +394,7 @@ for id_iter in range(nb_iter):
                 + (gamma*f_pp(tau)/(2*n*p)* (n_signed - factor*vec_prop).T 
                         + f_pp(tau)/(2*p) * R_n.T @ Delta.T @ J) @ t**2
 
-        ### own formulae
+        ### own fair formulae
         expecs = factor * np.ones((k, 1)) \
                 + b_sqrt_n \
                 + D_cal \
@@ -404,11 +404,21 @@ for id_iter in range(nb_iter):
         y_list = np.array([1, 1, -1, -1])
         sens_list = np.array([0, 1, 0, 1])
 
+        ### zhenyu formula extension
+        expecs_ext = factor*np.ones((k,1)) + (n_signed - factor*vec_prop).T @ (
+                    gamma*f_pp(tau)/(2*n*p) * t**2 
+                    + 2*gamma*f_p(tau)/(n**2 * p) * A_1_11 @ vec_prop 
+                    + 2*gamma*f_p(tau)/(n**2*p) * np.array([np.trace(cov_list[b]) for b in range(k)]).reshape((k,1)))
+        varis_ext = np.zeros((k,1))
+
         ### For zhenyu's formulae
         c2 = (cardinals[2] + cardinals[3])/n
         c1 = (cardinals[0] + cardinals[1])/n
         expecs_zh = (c2-c1)*np.ones((k,1))
         varis_zh = np.zeros((k,1))
+        varis_zh1 = np.zeros((k,1))
+        varis_zh2 = np.zeros((k,1))
+        varis_zh3 = np.zeros((k,1))
         D_cal_zh = -2*f_p(tau)/p * np.linalg.norm(mu_list[0]-mu_list[2])**2 \
                 + f_pp(tau)/p**2 * np.trace(cov_list[0]-cov_list[2])**2 \
                 + 2*f_pp(tau)/p**2 * np.trace((cov_list[0]-cov_list[2]) @ (cov_list[0] - cov_list[2]))
@@ -450,11 +460,28 @@ for id_iter in range(nb_iter):
             varis[a] += (2*f_p(tau))**2/p * np.sum(tmp)
 
             """
+            Extension of Zhenyu binary LS-SVM
+            """
+            # expectations
+            expecs_ext[a] += float(gamma*f_pp(tau)/np.sqrt(p) * t.T @ n_signed/n *np.trace(cov_list[a])/p)
+            expecs_ext[a] += float((n_signed - factor*vec_prop).T @ (
+                        gamma*f_p(tau)/(n*p)*mu_diff_dist[:, a]
+                        + 2*gamma*f_pp(tau)/(n*p) * S[:,a]
+                        ))
+            expecs_ext[a] += float(gamma*f_pp(tau)/np.sqrt(p) * t.T @ n_signed/n * t[a])
+
+            # variances
+            varis_ext[a] += float(2*(gamma*f_pp(tau)/np.sqrt(p) * t.T @ n_signed/n)**2 * np.trace(cov_list[a] @ cov_list[a])/p**2)
+            tmp = [vec_prop[b]*(1 + factor**2 - 2*y_list[b]*factor) * S[a,b] for b in range(k)]
+            varis_ext[a] += (2*gamma*f_p(tau)/n)**2 * 1/p * np.sum(tmp)
+            varis_ext[a] += float((2*gamma*f_p(tau)/(n*p))**2 *(n_signed - factor*vec_prop).T @ mu_diff.T @ cov_list[a] @ mu_diff @ (n_signed - factor*vec_prop))
+
+            """
             For Zhenyu binary LS_SVM
             """
             nu_a1 = (f_pp(tau)/p**2)**2 * np.trace(cov_list[0] - cov_list[2])**2 * np.trace(cov_list[a]@cov_list[a])
             nu_a2 = 2*f_p(tau)**2/p**2 * (mu_list[2] - mu_list[0]).T @ cov_list[a] @ (mu_list[2] - mu_list[0])
-            nu_a3 = 2*f_p(tau)**2/(n*p**2) * (np.trace(cov_list[0]@cov_list[a])/c1 + np.trace(cov_list[2]@cov_list[a]))
+            nu_a3 = 2*f_p(tau)**2/(n*p**2) * (np.trace(cov_list[0]@cov_list[a])/c1 + np.trace(cov_list[2]@cov_list[a])/c2)
             varis_zh[a] = 8*gamma**2 * c1**2 * c2**2 *(nu_a1 + nu_a2 + nu_a3)
 
         """ Store approximations
@@ -628,7 +655,10 @@ for id_iter in range(nb_iter):
                 for a in range(k):
                     axs[0].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
                     axs[0].plot(space, stats.norm.pdf(space, means_exp[a], np.sqrt(varis[a])), color=colors[a], linestyle='-.')
-                    axs[1].plot(space, stats.norm.pdf(space, - expecs_zh[a], np.sqrt(varis_zh[a])), color=colors[a])
+                    ## classic zhenyu formula
+                    #axs[1].plot(space, stats.norm.pdf(space, - expecs_zh[a], np.sqrt(varis_zh[a])), color=colors[a])
+                    ## our extension
+                    axs[1].plot(space, stats.norm.pdf(space, expecs_ext[a], np.sqrt(varis_ext[a])), color=colors[a])
                 
                 # Create legend
                 handles = [Rectangle((0, 0), 1,1,color=c) for c in ['blue', 'green', 'red', 'yellow']]
