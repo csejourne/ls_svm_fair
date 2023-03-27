@@ -25,6 +25,7 @@ from sys import exit
 
 """ TODO
 - check formulae for theoretical curves
+- refactor code as formula from zhenyu do not hold in our more complex setup?
 """
 
 ### NumPy print threshold size.
@@ -35,8 +36,8 @@ save_arr = False
 save_arr_test = False
 get_arr = False
 get_bk = False
-do_test = False
-plot_test = False
+do_test = True
+plot_test = True
 
 """
 We iterate over a high number of experiences to better evaluate the orders.
@@ -100,6 +101,7 @@ for id_iter in range(nb_iter):
     print("Experiment begin")
     #print(f"cov_scal is {cov_scal}")
     card_tmp = np.array([42, 22, 66, 116])
+    #card_tmp = np.array([66, 116, 42, 22])
     #cardinals_list = [list(card_tmp), list(2*card_tmp), list(4*card_tmp)]
     #cardinals_list = [list(card_tmp), list(2*card_tmp)]
     cardinals_list = [list(card_tmp)]
@@ -160,7 +162,7 @@ for id_iter in range(nb_iter):
         means_zh_list = []
         means_exp_list = []
         diff_means_list = []
-        diff_means_zh_list = []
+        diff_means_ext_list = []
         means_exp_app_list = []
         diff_means_app_list = []
         # Variances
@@ -189,18 +191,18 @@ for id_iter in range(nb_iter):
         sigma=p
 
         ### Fairness setup
-        beta_pos = 0.9
+        beta_pos = 0.8
         #beta_pos = 1
         beta_neg = beta_pos
         noise_pos = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
         noise_neg = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
-        #mu_list = [mean_scal * one_hot(0, p),
-        #           beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
-        #           mean_scal * one_hot(1, p),
-        #           beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
-        #           ]
-        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
-                   mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
+        mu_list = [mean_scal * one_hot(0, p),
+                   beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
+                   mean_scal * one_hot(1, p),
+                   beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
+                   ]
+        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
+        #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
         #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
 
@@ -211,8 +213,8 @@ for id_iter in range(nb_iter):
         # covariances from zhenyu's paper
         col = np.array([0.4**l for l in range(p)])
         C_2 = (1+2/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
-        cov_list = [np.eye(p), np.eye(p), C_2, C_2]
-        #cov_list = [np.eye(p), C_2, np.eye(p), C_2]
+        #cov_list = [np.eye(p), np.eye(p), C_2, C_2]
+        cov_list = [np.eye(p), C_2, np.eye(p), C_2]
         #cov_list = [(1 + 2/np.sqrt(p))*np.eye(p), C_2, (1 + 2/np.sqrt(p))*np.eye(p), C_2]
         
         ### Generate data.
@@ -335,23 +337,10 @@ for id_iter in range(nb_iter):
               + 1/np.sqrt(p)*t.T @ J.T@Delta@tilde_G_n@(Delta.T @ psi - 2/(n*p)*Delta.T @ J @A_1_11@vec_prop)
               + 1/np.sqrt(p)*(Delta.T @ psi - 2/(n*p)*Delta.T @ J @A_1_11@vec_prop).T @ tilde_G_n@Delta.T@J@t
               )
-        scal_debug.add_val(float(A_12 @ np.linalg.pinv(A_22) @ A_21))
-        scal_debug.add_app_val(0, float(approx))
-        scal_debug.add_app_val(1, float(
-                ones_n.T @ (C_n + C_sqrt_n).T@Delta@F_n@Delta.T@(C_n+C_sqrt_n)@ones_n + 1/n*ones_n.T@L@ones_n
-                + 2*f_p(tau)/n**2 * ones_n.T @ L @ A_sqrt_n@L@ones_n + ones_n.T@L@(Q-beta/n**2*np.eye(n))@ones_n)
-                )
-        scal_debug.add_app_val(2, float(
-                ones_n.T @ (C_n + C_sqrt_n).T@Delta@F_n@Delta.T@(C_n+C_sqrt_n)@ones_n + 1/n*ones_n.T@L@ones_n)
-                )
 
         ### Compute approximation of `b`
-        #b_sqrt_n = (1 + gamma*f(tau))/(gamma*f_p(tau)**2) * det_tilde_G_n + 1/p * t.T@J.T@Delta@tilde_G_n@Delta.T @ J @ t
         b_sqrt_n = 1 + (gamma*f_p(tau)**2/((1 + gamma*f(tau)) * det_tilde_G_n) * 1/p * t.T@J.T@Delta@tilde_G_n@Delta.T @ J @ t)
-        #print("det_tilde_G_n: ", det_tilde_G_n)
-        #print("b_sqrt_n_1: ", b_sqrt_n)
         b_sqrt_n = 1/b_sqrt_n
-        #print("b_sqrt_n_2: ", b_sqrt_n)
 
         b_sqrt_n = b_sqrt_n * (
                 gamma*f_p(tau)**2/((1 + gamma*f(tau)) * det_tilde_G_n) * 
@@ -362,7 +351,6 @@ for id_iter in range(nb_iter):
                 - gamma*f_p(tau)/(n*np.sqrt(p))*t.T @ n_signed
                 )
         b_sqrt_n = float(b_sqrt_n)
-        #print("b_sqrt_n_3: ", b_sqrt_n)
 
         b_app = ones_k.T @ n_signed / n + b_sqrt_n
 
@@ -374,10 +362,6 @@ for id_iter in range(nb_iter):
                 - gamma*f_p(tau)/(n*p) * t.T @ n_signed * Delta.T @ J @ t 
                 - b_sqrt_n/np.sqrt(p) * Delta.T @ J @ t)
                 )
-        r1_debug.add_val(lambda_pos)
-        r1_debug.add_app_val(0, R_n[0,0])
-        r2_debug.add_val(lambda_neg)
-        r2_debug.add_app_val(0, R_n[1,0])
         
         ### Compute approximation of `alpha`
         alpha_n_3_2 = -(gamma*b_sqrt_n*1/(1+gamma*f(tau))*1/n 
@@ -387,7 +371,6 @@ for id_iter in range(nb_iter):
 
         alpha_app = gamma/n * P @ y + alpha_n_3_2 *ones_n
 
-        #exit()
         ### Compute the expectations `E_a`
         D_cal = (gamma*f_p(tau)/n * y.T @ P + f_p(tau)*R_n.T @ Delta.T) @ psi \
                 + (gamma*f_pp(tau)/(2*n)* y.T @ P + f_pp(tau)/2*R_n.T @ Delta.T) @ psi**2 \
@@ -407,14 +390,14 @@ for id_iter in range(nb_iter):
         ### zhenyu formula extension
         expecs_ext = factor*np.ones((k,1)) + (n_signed - factor*vec_prop).T @ (
                     gamma*f_pp(tau)/(2*n*p) * t**2 
-                    + 2*gamma*f_p(tau)/(n**2 * p) * A_1_11 @ vec_prop 
+                    + 2*gamma*f_p(tau)/(n**2 * p) * A_1_11 @ vec_prop
                     + 2*gamma*f_p(tau)/(n**2*p) * np.array([np.trace(cov_list[b]) for b in range(k)]).reshape((k,1)))
         varis_ext = np.zeros((k,1))
 
         ### For zhenyu's formulae
         c2 = (cardinals[2] + cardinals[3])/n
         c1 = (cardinals[0] + cardinals[1])/n
-        expecs_zh = (c2-c1)*np.ones((k,1))
+        expecs_zh = (c1-c2)*np.ones((k,1)) # our classes labels.
         varis_zh = np.zeros((k,1))
         varis_zh1 = np.zeros((k,1))
         varis_zh2 = np.zeros((k,1))
@@ -422,10 +405,10 @@ for id_iter in range(nb_iter):
         D_cal_zh = -2*f_p(tau)/p * np.linalg.norm(mu_list[0]-mu_list[2])**2 \
                 + f_pp(tau)/p**2 * np.trace(cov_list[0]-cov_list[2])**2 \
                 + 2*f_pp(tau)/p**2 * np.trace((cov_list[0]-cov_list[2]) @ (cov_list[0] - cov_list[2]))
-        expecs_zh[0] += -2*c2**2*c1 * D_cal_zh
-        expecs_zh[1] += -2*c2**2*c1 * D_cal_zh
-        expecs_zh[2] += 2*c1**2*c2 * D_cal_zh
-        expecs_zh[3] += 2*c1**2*c2 * D_cal_zh
+        expecs_zh[0] += +2*gamma*c2**2*c1 * D_cal_zh
+        expecs_zh[1] += +2*gamma*c2**2*c1 * D_cal_zh
+        expecs_zh[2] += -2*gamma*c1**2*c2 * D_cal_zh
+        expecs_zh[3] += -2*gamma*c1**2*c2 * D_cal_zh
 
         for a in range(k):
             """
@@ -468,8 +451,9 @@ for id_iter in range(nb_iter):
                         gamma*f_p(tau)/(n*p)*mu_diff_dist[:, a]
                         + 2*gamma*f_pp(tau)/(n*p) * S[:,a]
                         ))
-            expecs_ext[a] += float(gamma*f_pp(tau)/np.sqrt(p) * t.T @ n_signed/n * t[a])
-
+            expecs_ext[a] += float(gamma*f_pp(tau)/p * t.T @ n_signed/n * t[a])
+            expecs_ext[a] += float(- gamma*f_pp(tau)/np.sqrt(p) * t.T @ n_signed/n *np.trace(cov_list[a])/p)
+            
             # variances
             varis_ext[a] += float(2*(gamma*f_pp(tau)/np.sqrt(p) * t.T @ n_signed/n)**2 * np.trace(cov_list[a] @ cov_list[a])/p**2)
             tmp = [vec_prop[b]*(1 + factor**2 - 2*y_list[b]*factor) * S[a,b] for b in range(k)]
@@ -575,11 +559,11 @@ for id_iter in range(nb_iter):
                             np.mean(g_fair[('neg', 0)].flatten()),
                             np.mean(g_fair[('neg', 1)].flatten())])
                 diff_means_list.append(np.copy(np.squeeze(expecs) - means_exp))
-                diff_means_zh_list.append(np.copy(np.squeeze(expecs_zh) + means_exp))
+                diff_means_ext_list.append(np.copy(np.squeeze(expecs_ext) - means_exp))
                 means_exp_list.append(np.copy(means_exp))
                 means_list.append(np.copy(np.squeeze(expecs)))
                 means_zh_list.append(np.copy(np.squeeze(expecs_zh)))
-                const_bias = np.mean(diff_means_list)
+                const_bias = - np.mean(diff_means_list)
 
                 ## Variances
                 varis_exp = np.array([np.var(g_fair[('pos', 0)].flatten()), 
@@ -591,13 +575,13 @@ for id_iter in range(nb_iter):
                 varis_exp_list.append(np.copy(varis_exp))
                 varis_list.append(np.copy(np.squeeze(varis)))
                 varis_zh_list.append(np.copy(np.squeeze(varis_zh)))
-                ## Properties
 
+                ## Properties
                 # Errors
                 errors_th.append(missclass_errors_theo(expecs - const_bias, varis, threshold)) #test with not constant but class depend bias.
                 errors_exp.append(missclass_errors_exp(g_fair, threshold))
                 errors_unfair.append(missclass_errors_exp(g_unfair, threshold))
-                errors_zh.append(missclass_errors_zh(-expecs_zh,varis_zh, threshold))
+                errors_zh.append(missclass_errors_zh(expecs_zh, varis_zh, threshold))
 
             ### Storing results.
             # means
@@ -635,8 +619,9 @@ for id_iter in range(nb_iter):
                 hists[('neg', 1)] = axs[0].hist(g_fair[('neg', 1)].flatten(), 50, facecolor='yellow',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 axs[0].axvline(x=threshold, color='red')
-                axs[0].axvline(x=threshold - const_bias, linestyle='-.', color='red')
-                axs[0].set_title("fair LS-SVM")
+                axs[0].axvline(x=threshold + const_bias, linestyle='-.', color='red')
+                axs[0].set_title("fair LS-SVM", fontsize=20)
+                axs[0].tick_params(axis='x', labelsize=14)
                 
                 axs[1].hist(g_unfair[('pos', 0)].flatten(), 50, facecolor='blue', alpha=0.4,
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
@@ -647,23 +632,23 @@ for id_iter in range(nb_iter):
                 axs[1].hist(g_unfair[('neg', 1)].flatten(), 50, facecolor='yellow', alpha=0.4,
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 axs[1].axvline(x=threshold, color='red')
-                axs[1].set_title("unfair LS-SVM")
+                axs[1].set_title("unfair LS-SVM", fontsize=20)
+                axs[1].tick_params(axis='x', labelsize=14)
                 
                 ### Associated theoretical gaussian
                 colors = ['b', 'g', 'r', 'y']
-                space = np.linspace(threshold - 8*np.sqrt(varis[0]), threshold + 8*np.sqrt(varis[0]), 300)
+                space = np.linspace(threshold - 6*np.sqrt(varis[0]), threshold + 6*np.sqrt(varis[0]), 300)
                 for a in range(k):
+                    # fair svm
                     axs[0].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
                     axs[0].plot(space, stats.norm.pdf(space, means_exp[a], np.sqrt(varis[a])), color=colors[a], linestyle='-.')
-                    ## classic zhenyu formula
-                    #axs[1].plot(space, stats.norm.pdf(space, - expecs_zh[a], np.sqrt(varis_zh[a])), color=colors[a])
-                    ## our extension
+                    # our extension
                     axs[1].plot(space, stats.norm.pdf(space, expecs_ext[a], np.sqrt(varis_ext[a])), color=colors[a])
                 
                 # Create legend
                 handles = [Rectangle((0, 0), 1,1,color=c) for c in ['blue', 'green', 'red', 'yellow']]
                 labels=["Y = 1, A = 0", "Y = 1, A = 1", "Y = -1, A = 0", "Y = -1, A = 1"]
-                fig.legend(handles, labels)
+                fig.legend(handles, labels, fontsize = 24)
                 fig.savefig("results/distribs/zhenyu_setup_fair_formulae.pdf")
                 plt.show()
 
