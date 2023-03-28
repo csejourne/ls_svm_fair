@@ -492,15 +492,10 @@ for id_iter in range(nb_iter):
 
                 c2 = (cardinals[2] + cardinals[3])/n
                 c1 = (cardinals[0] + cardinals[1])/n
-                # Test different formula for the threshold. 
-                #TODO: check which one should be theoretically (remove b_sqrt_n ?)
-                #threshold = float(factor + b_sqrt_n)
-                #threshold = float(factor)
                 threshold = float(factor 
                         + b_sqrt_n 
                         + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed 
                         + n * alpha_n_3_2 * f(tau)
-                        + D_cal
                         )
 
                 #### For storing results
