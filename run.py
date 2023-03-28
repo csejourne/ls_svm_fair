@@ -196,13 +196,13 @@ for id_iter in range(nb_iter):
         beta_neg = beta_pos
         noise_pos = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
         noise_neg = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
-        mu_list = [mean_scal * one_hot(0, p),
-                   beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
-                   mean_scal * one_hot(1, p),
-                   beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
-                   ]
-        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
-        #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
+        #mu_list = [mean_scal * one_hot(0, p),
+        #           beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
+        #           mean_scal * one_hot(1, p),
+        #           beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
+        #           ]
+        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
+                   mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
         #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
 
@@ -213,8 +213,8 @@ for id_iter in range(nb_iter):
         # covariances from zhenyu's paper
         col = np.array([0.4**l for l in range(p)])
         C_2 = (1+2/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
-        #cov_list = [np.eye(p), np.eye(p), C_2, C_2]
-        cov_list = [np.eye(p), C_2, np.eye(p), C_2]
+        cov_list = [np.eye(p), np.eye(p), C_2, C_2]
+        #cov_list = [np.eye(p), C_2, np.eye(p), C_2]
         #cov_list = [(1 + 2/np.sqrt(p))*np.eye(p), C_2, (1 + 2/np.sqrt(p))*np.eye(p), C_2]
         
         ### Generate data.
@@ -366,6 +366,7 @@ for id_iter in range(nb_iter):
         ### Compute approximation of `alpha`
         alpha_n_3_2 = -(gamma*b_sqrt_n*1/(1+gamma*f(tau))*1/n 
                 + 1/n * gamma*f_p(tau)/(1+gamma*f(tau)) * 1/np.sqrt(p) * t.T @ J.T @ Delta @ R_n 
+                + gamma**2 *f_p(tau)/(1 + gamma*f(tau)) * 1/n**2 * t.T @ n_signed/np.sqrt(p)
                 )
         alpha_n_3_2 = float(alpha_n_3_2)
 
