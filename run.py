@@ -16,7 +16,7 @@ from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, buil
                 build_Delta, build_F_n, build_tilde_F_n, decision_fair, decision_unfair, \
                 comp_fair_expec_constraints, comp_fair_prob_constraints, \
                 get_metrics, missclass_errors_theo, missclass_errors_exp, \
-                missclass_errors_zh, tot_errors, Debug_obj
+                tot_errors, Debug_obj
 
 
 
@@ -96,7 +96,7 @@ for id_iter in range(nb_iter):
     ### Hyperparameters
     mode = "strict"
     gamma = 1
-    mean_scal = 3
+    mean_scal = 4
     cov_scal = 1
     print("Experiment begin")
     #print(f"cov_scal is {cov_scal}")
@@ -150,7 +150,6 @@ for id_iter in range(nb_iter):
     denom_diff_list = []
     diff_means_exp_list = []
     
-    
     for i in range(len(p_list)):
         #cardinals_test = np.array(cardinals_test) * np.array(cardinals_list[i])/np.sum(cardinals_list[i])
         #cardinals_test = list(np.rint(cardinals_test).astype(int))
@@ -174,12 +173,13 @@ for id_iter in range(nb_iter):
         varis_exp_app_list = []
         diff_varis_app_list = []
         # Theoretical errors
-        errors_th = []
+        errors_th_fair = []
+        errors_th_unfair = []
         # Experimental errors
-        errors_exp = []
-        errors_unfair = []
+        errors_exp_fair = []
+        errors_exp_unfair = []
         # Zhenyu errors
-        errors_zh = []
+        errors_ext = []
 
         # Class distribution
         cardinals = cardinals_list[i]
@@ -196,13 +196,13 @@ for id_iter in range(nb_iter):
         beta_neg = beta_pos
         noise_pos = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
         noise_neg = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
-        #mu_list = [mean_scal * one_hot(0, p),
-        #           beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
-        #           mean_scal * one_hot(1, p),
-        #           beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
-        #           ]
-        mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
-                   mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
+        mu_list = [mean_scal * one_hot(0, p),
+                   beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
+                   mean_scal * one_hot(1, p),
+                   beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
+                   ]
+        #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
+        #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
         #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
 
@@ -212,9 +212,10 @@ for id_iter in range(nb_iter):
         #            cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
         # covariances from zhenyu's paper
         col = np.array([0.4**l for l in range(p)])
-        C_2 = (1+2/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
-        cov_list = [np.eye(p), np.eye(p), C_2, C_2]
+        C_2 = (1+1/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
+        #cov_list = [np.eye(p), np.eye(p), C_2, C_2]
         #cov_list = [np.eye(p), C_2, np.eye(p), C_2]
+        cov_list = [C_2, np.eye(p), C_2, np.eye(p)]
         #cov_list = [(1 + 2/np.sqrt(p))*np.eye(p), C_2, (1 + 2/np.sqrt(p))*np.eye(p), C_2]
         
         ### Generate data.
@@ -381,9 +382,9 @@ for id_iter in range(nb_iter):
         ### own fair formulae
         expecs = factor * np.ones((k, 1)) \
                 + b_sqrt_n \
-                + D_cal \
                 + n*alpha_n_3_2*f(tau) \
-                + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed
+                + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed 
+                #+ D_cal # it is O(p^{-1})
         varis = np.zeros((k,1))
         y_list = np.array([1, 1, -1, -1])
         sens_list = np.array([0, 1, 0, 1])
@@ -412,13 +413,9 @@ for id_iter in range(nb_iter):
         expecs_zh[3] += -2*gamma*c1**2*c2 * D_cal_zh
 
         for a in range(k):
-            """
-            Formulae for fair LS-SVM
+            """ Formulae for fair LS-SVM
             """
             ### Compute the expectations `E_a`
-            tmp = (gamma*f_pp(tau)*t.T @ n_signed/(n*np.sqrt(p)) 
-                    + n*alpha_n_3_2 * f_p(tau) 
-                    + f_pp(tau)/np.sqrt(p) * R_n.T @ Delta.T @ J @ t) * np.trace(cov_list[a])/p
             D_cal_x = (gamma*f_p(tau)/(n*p)*(n_signed - factor*vec_prop).T 
                             + f_p(tau)/p * R_n.T @ Delta.T @ J)@mu_diff_dist[:, a] \
                 + (2*gamma*f_pp(tau)/(n*p) * (n_signed - factor*vec_prop).T 
@@ -426,7 +423,7 @@ for id_iter in range(nb_iter):
                 + (gamma*f_pp(tau)/(n*p)* t.T @ n_signed 
                             + n*alpha_n_3_2 *f_p(tau)/np.sqrt(p)
                             + f_pp(tau)/p * R_n.T @ Delta.T @ J @ t)*t[a]
-            expecs[a] += np.squeeze(tmp + D_cal_x)
+            expecs[a] += np.squeeze(D_cal_x)
 
             ### Compute the variances `Var_a`
             mu_diff = np.stack([mu_list[b] - mu_list[a] for b in range(k)]).T
@@ -443,8 +440,7 @@ for id_iter in range(nb_iter):
                     ) *S[a,b] for b in range(k)]
             varis[a] += (2*f_p(tau))**2/p * np.sum(tmp)
 
-            """
-            Extension of Zhenyu binary LS-SVM
+            """ Extension of Zhenyu binary LS-SVM
             """
             # expectations
             expecs_ext[a] += float(gamma*f_pp(tau)/np.sqrt(p) * t.T @ n_signed/n *np.trace(cov_list[a])/p)
@@ -461,8 +457,7 @@ for id_iter in range(nb_iter):
             varis_ext[a] += (2*gamma*f_p(tau)/n)**2 * 1/p * np.sum(tmp)
             varis_ext[a] += float((2*gamma*f_p(tau)/(n*p))**2 *(n_signed - factor*vec_prop).T @ mu_diff.T @ cov_list[a] @ mu_diff @ (n_signed - factor*vec_prop))
 
-            """
-            For Zhenyu binary LS_SVM
+            """ For Zhenyu binary LS_SVM
             """
             nu_a1 = (f_pp(tau)/p**2)**2 * np.trace(cov_list[0] - cov_list[2])**2 * np.trace(cov_list[a]@cov_list[a])
             nu_a2 = 2*f_p(tau)**2/p**2 * (mu_list[2] - mu_list[0]).T @ cov_list[a] @ (mu_list[2] - mu_list[0])
@@ -492,11 +487,13 @@ for id_iter in range(nb_iter):
 
                 c2 = (cardinals[2] + cardinals[3])/n
                 c1 = (cardinals[0] + cardinals[1])/n
-                threshold = float(factor 
-                        + b_sqrt_n 
-                        + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed 
-                        + n * alpha_n_3_2 * f(tau)
-                        )
+                ### CARE: the term in O(p^{-3/2}) may not be computable. The threshold is thus theoretical.
+                #threshold = float(factor 
+                #        + b_sqrt_n 
+                #        + gamma*f_p(tau)/(n*np.sqrt(p)) * t.T @ n_signed 
+                #        + n * alpha_n_3_2 * f(tau)
+                #        )
+                threshold = float(factor)
 
                 #### For storing results
                 ## Predictions
@@ -559,7 +556,7 @@ for id_iter in range(nb_iter):
                 means_exp_list.append(np.copy(means_exp))
                 means_list.append(np.copy(np.squeeze(expecs)))
                 means_zh_list.append(np.copy(np.squeeze(expecs_zh)))
-                const_bias = - np.mean(diff_means_list)
+                const_bias = np.mean(diff_means_list)
 
                 ## Variances
                 varis_exp = np.array([np.var(g_fair[('pos', 0)].flatten()), 
@@ -574,10 +571,16 @@ for id_iter in range(nb_iter):
 
                 ## Properties
                 # Errors
-                errors_th.append(missclass_errors_theo(expecs - const_bias, varis, threshold)) #test with not constant but class depend bias.
-                errors_exp.append(missclass_errors_exp(g_fair, threshold))
-                errors_unfair.append(missclass_errors_exp(g_unfair, threshold))
-                errors_zh.append(missclass_errors_zh(expecs_zh, varis_zh, threshold))
+                errors_th_fair.append(missclass_errors_theo(expecs - const_bias, varis, threshold)) #test with not constant but class depend bias.
+                errors_th_unfair.append(missclass_errors_theo(expecs_ext, varis_ext, threshold))
+                errors_exp_fair.append(missclass_errors_exp(g_fair, threshold))
+                errors_exp_unfair.append(missclass_errors_exp(g_unfair, threshold))
+
+                errors = {"th_fair": errors_th_fair,
+                          "th_unfair": errors_th_unfair,
+                          "exp_fair": errors_exp_fair,
+                          "exp_unfair": errors_exp_unfair
+                          }
 
             ### Storing results.
             # means
@@ -606,26 +609,26 @@ for id_iter in range(nb_iter):
             if plot_test:
                 ### Predictions distributions.
                 fig, axs = plt.subplots(2)
-                hists[('pos', 0)] = axs[0].hist(g_fair[('pos', 0)].flatten(), 50, facecolor='blue',
+                hists[('pos', 0)] = axs[0].hist(g_fair[('pos', 0)].flatten(), 75, facecolor='blue',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                hists[('pos', 1)] = axs[0].hist(g_fair[('pos', 1)].flatten(), 50, facecolor='green',
+                hists[('pos', 1)] = axs[0].hist(g_fair[('pos', 1)].flatten(), 75, facecolor='green',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                hists[('neg', 0)] = axs[0].hist(g_fair[('neg', 0)].flatten(), 50, facecolor='red',
+                hists[('neg', 0)] = axs[0].hist(g_fair[('neg', 0)].flatten(), 75, facecolor='red',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                hists[('neg', 1)] = axs[0].hist(g_fair[('neg', 1)].flatten(), 50, facecolor='yellow',
+                hists[('neg', 1)] = axs[0].hist(g_fair[('neg', 1)].flatten(), 75, facecolor='yellow',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 axs[0].axvline(x=threshold, color='red')
-                axs[0].axvline(x=threshold + const_bias, linestyle='-.', color='red')
+                #axs[0].axvline(x=threshold - const_bias, linestyle='-.', color='red')
                 axs[0].set_title("fair LS-SVM", fontsize=20)
                 axs[0].tick_params(axis='x', labelsize=14)
                 
-                axs[1].hist(g_unfair[('pos', 0)].flatten(), 50, facecolor='blue', alpha=0.4,
+                axs[1].hist(g_unfair[('pos', 0)].flatten(), 75, facecolor='blue', alpha=0.4,
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[1].hist(g_unfair[('pos', 1)].flatten(), 50, facecolor='green', alpha=0.4,
+                axs[1].hist(g_unfair[('pos', 1)].flatten(), 75, facecolor='green', alpha=0.4,
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[1].hist(g_unfair[('neg', 0)].flatten(), 50, facecolor='red', alpha=0.4,
+                axs[1].hist(g_unfair[('neg', 0)].flatten(), 75, facecolor='red', alpha=0.4,
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
-                axs[1].hist(g_unfair[('neg', 1)].flatten(), 50, facecolor='yellow', alpha=0.4,
+                axs[1].hist(g_unfair[('neg', 1)].flatten(), 75, facecolor='yellow', alpha=0.4,
                                 density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 axs[1].axvline(x=threshold, color='red')
                 axs[1].set_title("unfair LS-SVM", fontsize=20)
@@ -637,7 +640,8 @@ for id_iter in range(nb_iter):
                 for a in range(k):
                     # fair svm
                     axs[0].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
-                    axs[0].plot(space, stats.norm.pdf(space, means_exp[a], np.sqrt(varis[a])), color=colors[a], linestyle='-.')
+                    #axs[0].plot(space, stats.norm.pdf(space, means_exp[a], np.sqrt(varis[a])), color=colors[a], linestyle='-.')
+                    axs[0].plot(space, stats.norm.pdf(space, expecs[a] - const_bias, np.sqrt(varis[a])), color=colors[a], linestyle='-.')
                     # our extension
                     axs[1].plot(space, stats.norm.pdf(space, expecs_ext[a], np.sqrt(varis_ext[a])), color=colors[a])
                 

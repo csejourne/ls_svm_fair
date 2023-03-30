@@ -690,26 +690,6 @@ def missclass_errors_theo(expecs, varis, thresh):
 
     return np.squeeze(errors)
 
-def missclass_errors_zh(expecs, varis, thresh):
-    """
-    The parameters in the arrays should be ordered as follow: (1, 0), (1, 1), (-1, 0), (-1, 1)
-    Args:
-        expecs: array of k x 1
-        varis: array of k x 1
-        thresh: float
-    returns:
-        errors: array of k x 1
-    """
-    assert expecs.shape == varis.shape
-    tmp = np.zeros(expecs.shape) 
-    tmp[0] = (expecs[0] - thresh)/np.sqrt(varis[0])
-    tmp[1] = (expecs[1] - thresh)/np.sqrt(varis[1])
-    tmp[2] = (thresh - expecs[2])/np.sqrt(varis[2])
-    tmp[3] = (thresh - expecs[3])/np.sqrt(varis[3])
-    errors = 1/2 * erfc(tmp/np.sqrt(2))
-
-    return np.squeeze(errors)
-
 def missclass_errors_exp(g_fair, thresh):
     """
     Args:
