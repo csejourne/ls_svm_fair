@@ -96,7 +96,7 @@ for id_iter in range(nb_iter):
     ### Hyperparameters
     mode = "strict"
     gamma = 1
-    mean_scal = 4
+    mean_scal = 2
     cov_scal = 1
     print("Experiment begin")
     #print(f"cov_scal is {cov_scal}")
@@ -196,15 +196,26 @@ for id_iter in range(nb_iter):
         beta_neg = beta_pos
         noise_pos = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
         noise_neg = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
-        mu_list = [mean_scal * one_hot(0, p),
-                   beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
-                   mean_scal * one_hot(1, p),
-                   beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
-                   ]
+        ### sensitive attributes means are randomly modified with a coefficient from the non-sensitive means.
+        #mu_list = [mean_scal * one_hot(0, p),
+        #           beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
+        #           mean_scal * one_hot(1, p),
+        #           beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
+        #           ]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
         #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
         #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
+        ### Barycenter between the non-sensitive means for the sensitive means.
+        eta_pos = -0.2
+        eta_neg = -0.2
+        mu_pos = mean_scal * one_hot(0, p)
+        mu_neg = mean_scal * one_hot(1, p)
+        mu_list = [mu_pos,
+                   mu_pos + eta_pos * (mu_pos - mu_neg),
+                   mu_neg,
+                   mu_neg + eta_neg * (mu_pos - mu_neg)
+                   ]
 
         #cov_list = [cov_scal*np.eye(p),  cov_scal*np.eye(p),
         #            (1+2/np.sqrt(p)) * cov_scal*np.eye(p),  (1+2/np.sqrt(p)) * cov_scal*np.eye(p)]
@@ -214,8 +225,8 @@ for id_iter in range(nb_iter):
         col = np.array([0.4**l for l in range(p)])
         C_2 = (1+1/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
         #cov_list = [np.eye(p), np.eye(p), C_2, C_2]
-        #cov_list = [np.eye(p), C_2, np.eye(p), C_2]
-        cov_list = [C_2, np.eye(p), C_2, np.eye(p)]
+        cov_list = [np.eye(p), C_2, np.eye(p), C_2]
+        #cov_list = [C_2, np.eye(p), C_2, np.eye(p)]
         #cov_list = [(1 + 2/np.sqrt(p))*np.eye(p), C_2, (1 + 2/np.sqrt(p))*np.eye(p), C_2]
         
         ### Generate data.
@@ -546,6 +557,13 @@ for id_iter in range(nb_iter):
                 unfair_expecs_const_int = comp_fair_expec_constraints(preds_unfair, ind_dict_test, with_int=True)
                 unfair_probs_const = comp_fair_prob_constraints(preds_unfair, ind_dict_test)
 
+                #print("fair_expecs_const = ", fair_expecs_const)
+                #print("fair_expecs_const_int = ", fair_expecs_const_int)
+                print("fair_probs_const = ", fair_probs_const)
+                #print("unfair_expecs_const = ", unfair_expecs_const)
+                #print("unfair_expecs_const_int = ", unfair_expecs_const_int)
+                print("unfair_probs_const = ", unfair_probs_const)
+                print("\n")
                 ## Means
                 means_exp = np.array([np.mean(g_fair[('pos', 0)].flatten()), 
                             np.mean(g_fair[('pos', 1)].flatten()),

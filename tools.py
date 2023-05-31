@@ -308,9 +308,9 @@ def comp_fair_prob_constraints(preds, ind_dict):
     card0 = np.sum(ind_dict[('neg', 0)]) * nb_loops
     card1 = np.sum(ind_dict[('neg', 1)]) * nb_loops
     neg_sens_0 = preds * ind_dict[('neg', 0)].T 
-    neg_sens_0[neg_sens_0 < 0] = 0 #we keep only the negitive values
+    neg_sens_0[neg_sens_0 < 0] = 0 #we keep only the positive values
     neg_sens_1 = preds * ind_dict[('neg', 1)].T 
-    neg_sens_1[neg_sens_1 < 0] = 0 #we keep only the negitive values
+    neg_sens_1[neg_sens_1 < 0] = 0 #we keep only the positive values
     fair_prob_const[('neg', 0)] = 1/card0 * np.sum(neg_sens_0)
     fair_prob_const[('neg', 1)] = 1/card1 * np.sum(neg_sens_1)
 
