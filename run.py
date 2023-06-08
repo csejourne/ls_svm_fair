@@ -197,37 +197,46 @@ for id_iter in range(nb_iter):
         noise_pos = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
         noise_neg = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
         ### sensitive attributes means are randomly modified with a coefficient from the non-sensitive means.
-        #mu_list = [mean_scal * one_hot(0, p),
-        #           beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
-        #           mean_scal * one_hot(1, p),
-        #           beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
-        #           ]
+        mu_list = [mean_scal * one_hot(0, p),
+                   beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
+                   mean_scal * one_hot(1, p),
+                   beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
+                   ]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
         #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
         #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
         ### Barycenter between the non-sensitive means for the sensitive means.
-        eta_pos = -0.2
-        eta_neg = -0.2
-        mu_pos = mean_scal * one_hot(0, p)
-        mu_neg = mean_scal * one_hot(1, p)
-        mu_list = [mu_pos,
-                   mu_pos + eta_pos * (mu_pos - mu_neg),
-                   mu_neg,
-                   mu_neg + eta_neg * (mu_pos - mu_neg)
-                   ]
+        #eta_pos = -0.2
+        #eta_neg = -0.2
+        #mu_pos = mean_scal * one_hot(0, p)
+        #mu_neg = mean_scal * one_hot(1, p)
+        #mu_list = [mu_pos,
+        #           mu_pos + eta_pos * (mu_pos - mu_neg),
+        #           mu_neg,
+        #           mu_neg + eta_neg * (mu_pos - mu_neg)
+        #           ]
 
         #cov_list = [cov_scal*np.eye(p),  cov_scal*np.eye(p),
         #            (1+2/np.sqrt(p)) * cov_scal*np.eye(p),  (1+2/np.sqrt(p)) * cov_scal*np.eye(p)]
         #cov_list = [cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p),
         #            cov_scal*np.eye(p), (1 + 2/np.sqrt(p)) * cov_scal*np.eye(p)]
         # covariances from zhenyu's paper
-        col = np.array([0.4**l for l in range(p)])
-        C_2 = (1+1/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
+        #col = np.array([0.4**l for l in range(p)])
+        #C_2 = (1+1/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
         #cov_list = [np.eye(p), np.eye(p), C_2, C_2]
-        cov_list = [np.eye(p), C_2, np.eye(p), C_2]
+        #cov_list = [np.eye(p), C_2, np.eye(p), C_2]
         #cov_list = [C_2, np.eye(p), C_2, np.eye(p)]
         #cov_list = [(1 + 2/np.sqrt(p))*np.eye(p), C_2, (1 + 2/np.sqrt(p))*np.eye(p), C_2]
+        cov_mod = np.eye(p)
+        tmp_a = 2
+        tmp_b = -1
+        cov_mod[0,0] = tmp_a
+        cov_mod[1,1] = tmp_a
+        cov_mod[0,1] = tmp_b
+        cov_mod[1,0] = tmp_b
+        # we change only the first 4 values
+        cov_list = [cov_scal*np.eye(p), cov_scal*cov_mod, cov_scal*np.eye(p), cov_scal*cov_mod]
         
         ### Generate data.
         X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
