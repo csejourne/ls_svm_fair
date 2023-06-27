@@ -108,6 +108,54 @@ def get_gaussian_kernel(X, sigma):
     K = f(K/sigma)
     return K
 
+def build_fair_obj(X, sigma, gamma, cardinals, nu_list, ind_dict, mode="strict"):
+    """ Builds the system matrix to find the lagrangian parameters $b, \lambda_1, \lambda_{-1}, \alpha$ when using fairness
+    constraints.
+
+    Args:
+        X: (n x p array)
+        y: (n 1D array)
+        sigma: scalar
+        gamma: scalar
+        cardinals: list of 4 ints as explained previously.
+        nu_list: list of 2 scalars, regularization parameters.
+        ind_dict: dict of indicator vectors, as explained above.
+        mode: (str) can be "strict" or "relaxed". Whether we enforce the fairness constraints exactly or approximatively.
+
+    returns:
+        matrix: (n+3)x(n+3) array.
+    """
+    n, p = X.shape
+    K = get_gaussian_kernel(X, sigma)
+    nu_pos = nu_list[0]
+    nu_neg = nu_list[1]
+
+    # For H_1(X)
+    H_pos = 1/cardinals[0] * K @ ind_dict[('pos', 0)] \
+        - 1/cardinals[1] * K @ ind_dict[('pos', 1)]
+
+    # For H_1(X)
+    H_neg = 1/cardinals[2] * K @ ind_dict[('neg', 0)] \
+        - 1/cardinals[3] * K @ ind_dict[('neg', 1)]
+
+    # For $h_1(X)^T h_1(X)$
+    h_pos_pos = (1/cardinals[0]**2) * ind_dict[('pos', 0)].T @ K @ ind_dict[('pos', 0)] \
+            + (1/cardinals[1]**2) * ind_dict[('pos', 1)].T @ K @ ind_dict[('pos', 1)] \
+            - 2/(cardinals[0]*cardinals[1]) * ind_dict[('pos', 0)].T @ K @ ind_dict[('pos', 1)]
+
+    # For $h_{-1}(X)^T h_{-1}(X)$
+    h_neg_neg = (1/cardinals[2]**2) * ind_dict[('neg', 0)].T @ K @ ind_dict[('neg', 0)] \
+            + (1/cardinals[3]**2) * ind_dict[('neg', 1)].T @ K @ ind_dict[('neg', 1)] \
+            - 2/(cardinals[2]*cardinals[3]) * ind_dict[('neg', 0)].T @ K @ ind_dict[('neg', 1)]
+
+    # For $h_1(X)^T h_{-1}(X)$
+    h_neg_pos = 1/(cardinals[0]*cardinals[2]) * ind_dict[('neg', 0)].T @ K @ ind_dict[('pos', 0)] \
+            + 1/(cardinals[1]*cardinals[3]) * ind_dict[('neg', 1)].T @ K @ ind_dict[('pos', 1)] \
+            - 1/(cardinals[2]*cardinals[1]) * ind_dict[('neg', 0)].T @ K @ ind_dict[('pos', 1)] \
+            - 1/(cardinals[3]*cardinals[0]) * ind_dict[('neg', 1)].T @ K @ ind_dict[('pos', 0)]
+
+    return H_pos, H_neg, h_pos_pos, h_neg_neg, h_neg_pos
+
 def build_system_matrix(X, sigma, gamma, cardinals, nu_list, ind_dict, mode="strict"):
     """ Builds the system matrix to find the lagrangian parameters $b, \lambda_1, \lambda_{-1}, \alpha$ when using fairness
     constraints.
@@ -240,7 +288,7 @@ def decision_unfair(X, b, alpha, sigma, x_q):
 
     return pred
 
-def comp_fair_expec_constraints(preds, ind_dict, with_int=False):
+def comp_fair_expec_constraints_old(preds, ind_dict, with_int=False):
     """ Computes the value of the fairness constraints, to see how well they are respected by `pred_func`.
     NOTE: this function computes the approximated expectation of conditional variables, not the probabilities of errors.
 
@@ -258,18 +306,54 @@ def comp_fair_expec_constraints(preds, ind_dict, with_int=False):
     for key in ind_dict.keys():
         assert  ind_dict[key].shape[1] == 1
 
-    nb_loops, _ = preds.shape
     fair_expec_const = {}
     # Positive constraint
-    card0 = np.sum(ind_dict[('pos', 0)]) * nb_loops
-    card1 = np.sum(ind_dict[('pos', 1)]) * nb_loops
+    card0 = np.sum(ind_dict[('pos', 0)]) 
+    card1 = np.sum(ind_dict[('pos', 1)]) 
     fair_expec_const[('pos', 0)] = 1/card0 * np.sum(preds * ind_dict[('pos', 0)].T)
     fair_expec_const[('pos', 1)] = 1/card1 * np.sum(preds * ind_dict[('pos', 1)].T)
     # Negative constraint
-    card0 = np.sum(ind_dict[('neg', 0)]) * nb_loops
-    card1 = np.sum(ind_dict[('neg', 1)]) * nb_loops
+    card0 = np.sum(ind_dict[('neg', 0)])
+    card1 = np.sum(ind_dict[('neg', 1)])
     fair_expec_const[('neg', 0)] = 1/card0 * np.sum(preds * ind_dict[('neg', 0)].T)
     fair_expec_const[('neg', 1)] = 1/card1 * np.sum(preds * ind_dict[('neg', 1)].T)
+
+    return fair_expec_const
+
+def comp_fair_expec_constraints(preds, cardinals_test, threshold, with_int=False):
+    """ Computes the value of the fairness constraints, to see how well they are respected by `pred_func`.
+    NOTE: this function computes the approximated expectation of conditional variables, not the probabilities of errors.
+
+    Args:
+        preds: (dict of array 2D) predictions to be assessed.
+        threshold: float
+        ind_dict: as specified in above functions.
+        with_int: (bool) whether to compute the constraints for the output (real) or when taking the sign.
+
+    returns:
+        tuple of scalars
+    """ 
+    assert preds.keys() == set([('pos', 0), ('pos',1), ('neg', 1), ('neg', 0)])
+    nb_loops_test = preds[('pos', 0)].shape[0]
+    g_fair = {}
+    g_fair[("pos", 0)] = np.zeros((nb_loops_test, cardinals_test[0]))
+    g_fair[("pos", 1)] = np.zeros((nb_loops_test, cardinals_test[1]))
+    g_fair[("neg", 0)] = np.zeros((nb_loops_test, cardinals_test[2]))
+    g_fair[("neg", 1)] = np.zeros((nb_loops_test, cardinals_test[3]))
+
+    for key in preds.keys():
+        if with_int:
+            g_fair[key] = np.sign(preds[key] - threshold)
+        else:
+            g_fair[key] = np.copy(preds[key])
+
+
+    fair_expec_const = {}
+    # Positive constraint
+    fair_expec_const[('pos', 0)] = 1/(nb_loops_test * cardinals_test[0]) * np.sum(g_fair[('pos', 0)])
+    fair_expec_const[('pos', 1)] = 1/(nb_loops_test * cardinals_test[1]) * np.sum(g_fair[('pos', 1)])
+    fair_expec_const[('neg', 0)] = 1/(nb_loops_test * cardinals_test[2]) * np.sum(g_fair[('neg', 0)])
+    fair_expec_const[('neg', 1)] = 1/(nb_loops_test * cardinals_test[3]) * np.sum(g_fair[('neg', 1)])
 
     return fair_expec_const
 

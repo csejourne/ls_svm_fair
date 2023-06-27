@@ -16,7 +16,7 @@ from tools import extract_W, build_V, build_A_n, build_A_sqrt_n, build_A_1, buil
                 build_Delta, build_F_n, build_tilde_F_n, decision_fair, decision_unfair, \
                 comp_fair_expec_constraints, comp_fair_prob_constraints, \
                 get_metrics, missclass_errors_theo, missclass_errors_exp, \
-                tot_errors, Debug_obj
+                tot_errors, Debug_obj, build_fair_obj, comp_fair_expec_constraints_old
 
 
 
@@ -44,7 +44,7 @@ We iterate over a high number of experiences to better evaluate the orders.
 """
 nb_iter = 1
 nb_tests = 1
-nb_loops_test = 50
+nb_loops_test = 3
 cardinals_test = [500, 500, 500, 500] # the base, we apply a coefficient later in the code
 n_test = sum(cardinals_test)
 
@@ -96,11 +96,11 @@ for id_iter in range(nb_iter):
     ### Hyperparameters
     mode = "strict"
     gamma = 1
-    mean_scal = 2
+    mean_scal = 3
     cov_scal = 1
     print("Experiment begin")
     #print(f"cov_scal is {cov_scal}")
-    card_tmp = np.array([42, 22, 66, 116])
+    card_tmp = 16*np.array([42, 22, 66, 116])
     #card_tmp = np.array([66, 116, 42, 22])
     #cardinals_list = [list(card_tmp), list(2*card_tmp), list(4*card_tmp)]
     #cardinals_list = [list(card_tmp), list(2*card_tmp)]
@@ -191,31 +191,32 @@ for id_iter in range(nb_iter):
         sigma=p
 
         ### Fairness setup
-        beta_pos = 0.8
-        #beta_pos = 1
-        beta_neg = beta_pos
-        noise_pos = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
-        noise_neg = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
-        ### sensitive attributes means are randomly modified with a coefficient from the non-sensitive means.
-        mu_list = [mean_scal * one_hot(0, p),
-                   beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
-                   mean_scal * one_hot(1, p),
-                   beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
-                   ]
+        #beta_pos = 0.8
+        ##beta_pos = 1
+        #beta_neg = beta_pos
+        #noise_pos = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
+        #noise_neg = 1/np.sqrt(p) * rng.multivariate_normal(np.zeros(p), np.eye(p))
+        #### sensitive attributes means are randomly modified with a coefficient from the non-sensitive means.
+        #mu_list = [mean_scal * one_hot(0, p),
+        #           beta_pos**2 * mean_scal * one_hot(0, p) + np.sqrt(1 - beta_pos**2) * noise_pos,
+        #           mean_scal * one_hot(1, p),
+        #           beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
+        #           ]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(0, p),
         #           mean_scal * one_hot(1, p), mean_scal * one_hot(1, p)]
         #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
         #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
-        ### Barycenter between the non-sensitive means for the sensitive means.
-        #eta_pos = -0.2
-        #eta_neg = -0.2
-        #mu_pos = mean_scal * one_hot(0, p)
-        #mu_neg = mean_scal * one_hot(1, p)
-        #mu_list = [mu_pos,
-        #           mu_pos + eta_pos * (mu_pos - mu_neg),
-        #           mu_neg,
-        #           mu_neg + eta_neg * (mu_pos - mu_neg)
-        #           ]
+        ### "Barycenter" (depending on the signs of eta_pos and eta_neg)
+        ### between the non-sensitive means for the sensitive means.
+        eta_pos = -0.5
+        eta_neg = 0.2
+        mu_pos = mean_scal * one_hot(0, p)
+        mu_neg = mean_scal * one_hot(1, p)
+        mu_list = [mu_pos,
+                   mu_pos + eta_pos * (mu_pos - mu_neg),
+                   mu_neg,
+                   mu_neg + eta_neg * (mu_pos - mu_neg)
+                   ]
 
         #cov_list = [cov_scal*np.eye(p),  cov_scal*np.eye(p),
         #            (1+2/np.sqrt(p)) * cov_scal*np.eye(p),  (1+2/np.sqrt(p)) * cov_scal*np.eye(p)]
@@ -224,19 +225,21 @@ for id_iter in range(nb_iter):
         # covariances from zhenyu's paper
         #col = np.array([0.4**l for l in range(p)])
         #C_2 = (1+1/np.sqrt(p))*sp_linalg.toeplitz(col, col.T)
+        cov_list = [cov_scal*np.eye(p), cov_scal*np.eye(p), cov_scal*np.eye(p), np.eye(p)]
         #cov_list = [np.eye(p), np.eye(p), C_2, C_2]
         #cov_list = [np.eye(p), C_2, np.eye(p), C_2]
         #cov_list = [C_2, np.eye(p), C_2, np.eye(p)]
         #cov_list = [(1 + 2/np.sqrt(p))*np.eye(p), C_2, (1 + 2/np.sqrt(p))*np.eye(p), C_2]
-        cov_mod = np.eye(p)
-        tmp_a = 2
-        tmp_b = -1
-        cov_mod[0,0] = tmp_a
-        cov_mod[1,1] = tmp_a
-        cov_mod[0,1] = tmp_b
-        cov_mod[1,0] = tmp_b
-        # we change only the first 4 values
-        cov_list = [cov_scal*np.eye(p), cov_scal*cov_mod, cov_scal*np.eye(p), cov_scal*cov_mod]
+        ### here we stretch the covariances around (1, -1, 0, ..., 0), and lessen around (1, 1, 0, ..., 0)
+        #cov_mod = np.eye(p)
+        #tmp_a = 2
+        #tmp_b = -1
+        #cov_mod[0,0] = tmp_a
+        #cov_mod[1,1] = tmp_a
+        #cov_mod[0,1] = tmp_b
+        #cov_mod[1,0] = tmp_b
+        ## we change only the first 4 values
+        #cov_list = [cov_scal*np.eye(p), cov_scal*cov_mod, cov_scal*np.eye(p), cov_scal*cov_mod]
         
         ### Generate data.
         X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
@@ -261,6 +264,7 @@ for id_iter in range(nb_iter):
 
         ### Fair solution
         matrix_fair = build_system_matrix(X, sigma, gamma, cardinals, [1, 1], ind_dict, mode=mode)
+        H_pos, H_neg, h_pos_pos, h_neg_neg, h_neg_pos = build_fair_obj(X, sigma, gamma, cardinals, [1, 1], ind_dict, mode=mode)
         rhs_fair = np.concatenate([np.zeros(3), y])
         sol_fair = sp_linalg.solve(matrix_fair, rhs_fair)
         # Build the fair objects
@@ -277,6 +281,10 @@ for id_iter in range(nb_iter):
         A_21 = matrix_fair[1:, 0].reshape((-1, 1))
         A_22 = matrix_fair[1:, 1:]
         
+        # compute values of conditions
+        cond_pos = alpha.T @ H_pos + lambda_pos*h_pos_pos + lambda_neg*h_neg_pos
+        cond_neg = alpha.T @ H_neg + lambda_pos*h_neg_pos + lambda_neg*h_neg_neg
+
         ### Generate approximators for control purposes.
         # Build V
         V = build_V(cardinals, mu_list, cov_list, J, W.T, M, t)
@@ -292,6 +300,7 @@ for id_iter in range(nb_iter):
         tau = 2*tau/p
         beta = f(0) - f(tau) + tau*f_p(tau)
         ones_n = np.ones((n,1))
+        factor = ones_k.T @ n_signed / n
         
         A_1 = build_A_1(mu_list, t, S, tau, V)
         A_1_11 = build_A_1_11(mu_list, t, S, tau)
@@ -303,14 +312,14 @@ for id_iter in range(nb_iter):
         C_sqrt_n = build_C_sqrt_n(A_sqrt_n, A_n, tau, gamma)
         C = C_n + C_sqrt_n
         
-        ## $B_{22}$ in the companion paper.
-        Om = np.linalg.pinv(B_22)
+        ### $B_{22}$ in the companion paper.
+        #Om = np.linalg.pinv(B_22)
         P = np.eye(n) - 1/n * np.ones((n,n))
         L = gamma / (1 +gamma * f(tau)) * (np.eye(n) + f(tau)*gamma * P)
         Q = 2*f_p(tau)/n**2 * (A_1 + 1/p * W @ W.T + \
                     2*f_p(tau)/n * A_sqrt_n @ L @ A_sqrt_n)
-        E = n/gamma * (np.eye(n) - n/gamma * Om)
-        Om_app = L/n + 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L + L @ (Q - beta/n**2*np.eye(n)) @ L
+        #E = n/gamma * (np.eye(n) - n/gamma * Om)
+        #Om_app = L/n + 2*f_p(tau)/n**2 * L @ A_sqrt_n @ L + L @ (Q - beta/n**2*np.eye(n)) @ L
         E_app = f(tau)/(1 + gamma*f(tau)) * np.ones((n,n)) \
                 - 1/gamma**2 * (2*f_p(tau) * L@A_sqrt_n@L 
                 + L @ (n**2 * Q - beta * np.eye(n)) @ L)
@@ -348,16 +357,14 @@ for id_iter in range(nb_iter):
         tilde_G_sqrt_n = build_tilde_F_n(Delta, -mat_sqrt_n)
         det_tilde_G_n = np.linalg.det(tilde_G_n)
         det_tilde_F_n = np.linalg.det(tilde_F_n)
-        factor = ones_k.T @ n_signed / n
 
         ###### Computes approximations
         ### computes approximation of A_12 A_22^{-1} A_21
-        #A_22_inv_app = 
-        approx = gamma/(1+gamma*f(tau)) + 1/det_tilde_G_n * (gamma*f_p(tau)/(1+gamma*f(tau)))**2 * (
-                1/p * t.T @ J.T @ Delta @ (tilde_G_n + tilde_G_sqrt_n)@Delta.T @J@t
-              + 1/np.sqrt(p)*t.T @ J.T@Delta@tilde_G_n@(Delta.T @ psi - 2/(n*p)*Delta.T @ J @A_1_11@vec_prop)
-              + 1/np.sqrt(p)*(Delta.T @ psi - 2/(n*p)*Delta.T @ J @A_1_11@vec_prop).T @ tilde_G_n@Delta.T@J@t
-              )
+        #approx = gamma/(1+gamma*f(tau)) + 1/det_tilde_G_n * (gamma*f_p(tau)/(1+gamma*f(tau)))**2 * (
+        #        1/p * t.T @ J.T @ Delta @ (tilde_G_n + tilde_G_sqrt_n)@Delta.T @J@t
+        #      + 1/np.sqrt(p)*t.T @ J.T@Delta@tilde_G_n@(Delta.T @ psi - 2/(n*p)*Delta.T @ J @A_1_11@vec_prop)
+        #      + 1/np.sqrt(p)*(Delta.T @ psi - 2/(n*p)*Delta.T @ J @A_1_11@vec_prop).T @ tilde_G_n@Delta.T@J@t
+        #      )
 
         ### Compute approximation of `b`
         b_sqrt_n = 1 + (gamma*f_p(tau)**2/((1 + gamma*f(tau)) * det_tilde_G_n) * 1/p * t.T@J.T@Delta@tilde_G_n@Delta.T @ J @ t)
@@ -515,8 +522,26 @@ for id_iter in range(nb_iter):
                 #        )
                 threshold = float(factor)
 
-                #### For storing results
+                ### For storing results
                 ## Predictions
+                ## With X train
+                #g_fair = {}
+                #g_fair[("pos", 0)] = np.zeros((nb_loops_test, cardinals[0]))
+                #g_fair[("pos", 1)] = np.zeros((nb_loops_test, cardinals[1]))
+                #g_fair[("neg", 0)] = np.zeros((nb_loops_test, cardinals[2]))
+                #g_fair[("neg", 1)] = np.zeros((nb_loops_test, cardinals[3]))
+
+                #g_unfair = {}
+                #g_unfair[("pos", 0)] = np.zeros((nb_loops_test, cardinals[0]))
+                #g_unfair[("pos", 1)] = np.zeros((nb_loops_test, cardinals[1]))
+                #g_unfair[("neg", 0)] = np.zeros((nb_loops_test, cardinals[2]))
+                #g_unfair[("neg", 1)] = np.zeros((nb_loops_test, cardinals[3]))
+                #
+                #preds_fair = np.zeros((nb_loops_test, np.sum(cardinals)))
+                #preds_unfair = np.zeros((nb_loops_test, np.sum(cardinals)))
+
+                # With X test
+                # Predictions
                 g_fair = {}
                 g_fair[("pos", 0)] = np.zeros((nb_loops_test, cardinals_test[0]))
                 g_fair[("pos", 1)] = np.zeros((nb_loops_test, cardinals_test[1]))
@@ -528,19 +553,31 @@ for id_iter in range(nb_iter):
                 g_unfair[("pos", 1)] = np.zeros((nb_loops_test, cardinals_test[1]))
                 g_unfair[("neg", 0)] = np.zeros((nb_loops_test, cardinals_test[2]))
                 g_unfair[("neg", 1)] = np.zeros((nb_loops_test, cardinals_test[3]))
-                
+
                 preds_fair = np.zeros((nb_loops_test, np.sum(cardinals_test)))
                 preds_unfair = np.zeros((nb_loops_test, np.sum(cardinals_test)))
 
                 for loop in range(nb_loops_test):
                     print(f"\t test {(loop+1)/nb_loops_test}")
 
+                    #assert g_fair.keys() == ind_dict_test.keys()
+                    #assert g_unfair.keys() == ind_dict_test.keys()
+
+                    #### With X train
+                    #preds_fair[loop, :] = pred_function_fair(X)
+                    #preds_unfair[loop, :] = pred_function_unfair(X)
+                
+                    #### Extract the predictions for each subclass for plotting use later.
+                    #for key in ind_dict.keys():
+                    #    inds = np.nonzero(np.squeeze(ind_dict[key])) 
+                    #    g_fair[key][loop] = preds_fair[loop, inds]
+                    #    g_unfair[key][loop] = preds_unfair[loop, inds]
+
+                    ### With X test: compute raw predictions in $\R$
                     ### Generate test dataset
                     X_test, y_test, sens_labels_test, ind_dict_test = gen_dataset(mu_list, cov_list,
                                     cardinals_test)
 
-                    assert g_fair.keys() == ind_dict_test.keys()
-                    ### Compute raw predictions in $\R$
                     preds_fair[loop, :] = pred_function_fair(X_test)
                     preds_unfair[loop, :] = pred_function_unfair(X_test)
                 
@@ -551,27 +588,33 @@ for id_iter in range(nb_iter):
                         g_unfair[key][loop] = preds_unfair[loop, inds]
                     
                 ### Remove threshold like Zhenyu
-                preds_fair = preds_fair - threshold # remove threshold
-                preds_unfair = preds_unfair - threshold # remove threshold
+                #preds_fair = preds_fair  # remove threshold
+                #preds_unfair = preds_unfair # remove threshold
+                #preds_fair = preds_fair - threshold # remove threshold
+                #preds_unfair = preds_unfair - threshold # remove threshold
                 
                 ### Study the results
 
                 ## Compare how well both predictions function satisfy fairness properties.
                 #results_fair = get_metrics(preds_fair, y_test, ind_dict_test)
                 #results_unfair = get_metrics(preds_unfair, y_test, ind_dict_test)
-                fair_expecs_const = comp_fair_expec_constraints(preds_fair, ind_dict_test)
-                fair_expecs_const_int = comp_fair_expec_constraints(preds_fair, ind_dict_test, with_int=True)
-                fair_probs_const = comp_fair_prob_constraints(preds_fair, ind_dict_test)
-                unfair_expecs_const = comp_fair_expec_constraints(preds_unfair, ind_dict_test)
-                unfair_expecs_const_int = comp_fair_expec_constraints(preds_unfair, ind_dict_test, with_int=True)
-                unfair_probs_const = comp_fair_prob_constraints(preds_unfair, ind_dict_test)
+                #fair_expecs_const_int = comp_fair_expec_constraints(preds_fair, ind_dict_test, with_int=True)
+                #fair_probs_const = comp_fair_prob_constraints(preds_fair, ind_dict_test)
+                #unfair_expecs_const_int = comp_fair_expec_constraints(preds_unfair, ind_dict_test, with_int=True)
+                #unfair_probs_const = comp_fair_prob_constraints(preds_unfair, ind_dict_test)
+                #fair_expecs_const = comp_fair_expec_constraints(g_fair, cardinals, threshold)
+                #unfair_expecs_const = comp_fair_expec_constraints(g_unfair, cardinals, threshold)
+                fair_expecs_const = comp_fair_expec_constraints(g_fair, cardinals_test, threshold)
+                unfair_expecs_const = comp_fair_expec_constraints(g_unfair, cardinals_test, threshold)
 
-                #print("fair_expecs_const = ", fair_expecs_const)
+                print("fair_expecs_const test pos = ", fair_expecs_const[('pos', 0)] - fair_expecs_const[('pos', 1)])
+                print("fair_expecs_const test neg = ", fair_expecs_const[('neg', 0)] - fair_expecs_const[('neg', 1)])
                 #print("fair_expecs_const_int = ", fair_expecs_const_int)
-                print("fair_probs_const = ", fair_probs_const)
-                #print("unfair_expecs_const = ", unfair_expecs_const)
+                #print("fair_probs_const = ", fair_probs_const)
+                print("unfair_expecs_const test pos = ", unfair_expecs_const[('pos', 0)] - unfair_expecs_const[('pos', 1)])
+                print("unfair_expecs_const test neg = ", unfair_expecs_const[('neg', 0)] - unfair_expecs_const[('neg', 1)])
                 #print("unfair_expecs_const_int = ", unfair_expecs_const_int)
-                print("unfair_probs_const = ", unfair_probs_const)
+                #print("unfair_probs_const = ", unfair_probs_const)
                 print("\n")
                 ## Means
                 means_exp = np.array([np.mean(g_fair[('pos', 0)].flatten()), 
@@ -598,16 +641,37 @@ for id_iter in range(nb_iter):
 
                 ## Properties
                 # Errors
-                errors_th_fair.append(missclass_errors_theo(expecs - const_bias, varis, threshold)) #test with not constant but class depend bias.
-                errors_th_unfair.append(missclass_errors_theo(expecs_ext, varis_ext, threshold))
-                errors_exp_fair.append(missclass_errors_exp(g_fair, threshold))
-                errors_exp_unfair.append(missclass_errors_exp(g_unfair, threshold))
+                #errors_th_fair.append(missclass_errors_theo(expecs - const_bias, varis, threshold)) #test with not constant but class depend bias.
+                #errors_th_unfair.append(missclass_errors_theo(expecs_ext, varis_ext, threshold))
+                #errors_exp_fair.append(missclass_errors_exp(g_fair, threshold))
+                #errors_exp_unfair.append(missclass_errors_exp(g_unfair, threshold))
 
-                errors = {"th_fair": errors_th_fair,
-                          "th_unfair": errors_th_unfair,
-                          "exp_fair": errors_exp_fair,
-                          "exp_unfair": errors_exp_unfair
-                          }
+                #errors = {"th_fair": errors_th_fair,
+                #          "th_unfair": errors_th_unfair,
+                #          "exp_fair": errors_exp_fair,
+                #          "exp_unfair": errors_exp_unfair
+                #          }
+
+            ### computing fairness constraints
+            # fair LS-SVM
+            tmp_preds_fair = pred_function_fair(X)
+            tmp_fair_expecs_const = comp_fair_expec_constraints_old(tmp_preds_fair, ind_dict)
+            fair_const_pos = 1/cardinals[0] * np.sum(tmp_preds_fair * ind_dict[('pos',0)].flatten()) - 1/cardinals[1] * np.sum(tmp_preds_fair* ind_dict[('pos', 1)].flatten())
+            fair_const_neg = 1/cardinals[2] * np.sum(tmp_preds_fair * ind_dict[('neg',0)].flatten()) - 1/cardinals[3] * np.sum(tmp_preds_fair* ind_dict[('neg', 1)].flatten())
+            # unfair
+            tmp_preds_unfair = pred_function_unfair(X)
+            tmp_unfair_expecs_const = comp_fair_expec_constraints_old(tmp_preds_unfair, ind_dict)
+            unfair_const_pos = 1/cardinals[0] * np.sum(tmp_preds_unfair * ind_dict[('pos',0)].flatten()) - 1/cardinals[1] * np.sum(tmp_preds_unfair* ind_dict[('pos', 1)].flatten())
+            unfair_const_neg = 1/cardinals[2] * np.sum(tmp_preds_unfair * ind_dict[('neg',0)].flatten()) - 1/cardinals[3] * np.sum(tmp_preds_unfair* ind_dict[('neg', 1)].flatten())
+            print("On training data: \n")
+            print(f"fair_const_pos: {fair_const_pos}")
+            print(f"fair_const_neg: {fair_const_neg}")
+            print(f"unfair_const_pos: {unfair_const_pos}")
+            print(f"unfair_const_neg: {unfair_const_neg}")
+            print("tmp_fair_expecs_const pos: ", tmp_fair_expecs_const[('pos', 0)] - tmp_fair_expecs_const[('pos', 1)])
+            print("tmp_fair_expecs_const neg: ", tmp_fair_expecs_const[('neg', 0)] - tmp_fair_expecs_const[('neg', 1)])
+            print("tmp_unfair_expecs_const pos: ", tmp_unfair_expecs_const[('pos', 0)] - tmp_unfair_expecs_const[('pos', 1)])
+            print("tmp_unfair_expecs_const neg: ", tmp_unfair_expecs_const[('neg', 0)] - tmp_unfair_expecs_const[('neg', 1)])
 
             ### Storing results.
             # means
@@ -635,7 +699,7 @@ for id_iter in range(nb_iter):
             hists = {}
             if plot_test:
                 ### Predictions distributions.
-                fig, axs = plt.subplots(2)
+                fig, axs = plt.subplots(2, sharex=True, sharey=True)
                 hists[('pos', 0)] = axs[0].hist(g_fair[('pos', 0)].flatten(), 75, facecolor='blue',
                                 alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
                 hists[('pos', 1)] = axs[0].hist(g_fair[('pos', 1)].flatten(), 75, facecolor='green',
@@ -676,8 +740,59 @@ for id_iter in range(nb_iter):
                 handles = [Rectangle((0, 0), 1,1,color=c) for c in ['blue', 'green', 'red', 'yellow']]
                 labels=["Y = 1, A = 0", "Y = 1, A = 1", "Y = -1, A = 0", "Y = -1, A = 1"]
                 fig.legend(handles, labels, fontsize = 24)
+                fig.suptitle("Test dataset")
                 fig.savefig("results/distribs/zhenyu_setup_fair_formulae.pdf")
                 plt.show()
+
+        ### Plot the classification of the training dataset
+        print("Plotting for the training dataset")
+        preds_train_fair = pred_function_fair(X)
+        fig, axs = plt.subplots(2)
+        hists[('pos', 0)] = axs[0].hist(preds_train_fair[np.nonzero(ind_dict[('pos', 0)].flatten().astype(int))],
+                            75, facecolor='blue', alpha=0.4, density = True, stacked = True,
+                            edgecolor='black', linewidth=1.2)
+        hists[('pos', 1)] = axs[0].hist(preds_train_fair[np.nonzero(ind_dict[('pos', 1)].flatten().astype(int))],
+                            75, facecolor='green', alpha=0.4, density = True, stacked = True,
+                            edgecolor='black', linewidth=1.2)
+        hists[('neg', 0)] = axs[0].hist(preds_train_fair[np.nonzero(ind_dict[('neg', 0)].flatten().astype(int))], 
+                            75, facecolor='red', alpha=0.4, density = True, stacked = True,
+                            edgecolor='black', linewidth=1.2)
+        hists[('neg', 1)] = axs[0].hist(preds_train_fair[np.nonzero(ind_dict[('neg', 1)].flatten().astype(int))],
+                            75, facecolor='yellow', alpha=0.4, density=True, stacked=True,
+                            edgecolor='black', linewidth=1.2)
+        axs[0].axvline(x=threshold, color='red')
+        axs[0].set_title("fair LS-SVM", fontsize=20)
+        axs[0].tick_params(axis='x', labelsize=14)
+        
+        preds_train_unfair = pred_function_unfair(X)
+        axs[1].hist(preds_train_unfair[np.nonzero(ind_dict[('pos', 0)].flatten().astype(int))],
+                            75, facecolor='blue', alpha=0.4, density=True, stacked=True,
+                            edgecolor='black', linewidth=1.2)
+        axs[1].hist(preds_train_unfair[np.nonzero(ind_dict[('pos', 1)].flatten().astype(int))],
+                            75, facecolor='green', alpha=0.4, density=True, stacked=True,
+                            edgecolor='black', linewidth=1.2)
+        axs[1].hist(preds_train_unfair[np.nonzero(ind_dict[('neg', 0)].flatten().astype(int))],
+                            75, facecolor='red', alpha=0.4, density=True, stacked=True,
+                            edgecolor='black', linewidth=1.2)
+        axs[1].hist(preds_train_unfair[np.nonzero(ind_dict[('neg', 1)].flatten().astype(int))],
+                            75, facecolor='yellow', alpha=0.4, density=True, stacked=True,
+                            edgecolor='black', linewidth=1.2)
+        axs[1].axvline(x=threshold, color='red')
+        axs[1].set_title("unfair LS-SVM", fontsize=20)
+        axs[1].tick_params(axis='x', labelsize=14)
+        ### Associated theoretical gaussian
+        colors = ['b', 'g', 'r', 'y']
+        space = np.linspace(threshold - 6*np.sqrt(varis[0]), threshold + 6*np.sqrt(varis[0]), 300)
+        for a in range(k):
+            # fair svm
+            axs[0].plot(space, stats.norm.pdf(space, expecs[a], np.sqrt(varis[a])), color=colors[a])
+            #axs[0].plot(space, stats.norm.pdf(space, means_exp[a], np.sqrt(varis[a])), color=colors[a], linestyle='-.')
+            axs[0].plot(space, stats.norm.pdf(space, expecs[a] - const_bias, np.sqrt(varis[a])), color=colors[a], linestyle='-.')
+            # our extension
+            axs[1].plot(space, stats.norm.pdf(space, expecs_ext[a], np.sqrt(varis_ext[a])), color=colors[a])
+        fig.suptitle("Training dataset")
+        plt.show()
+
 
     ### Store history of iterations.
     cumsum_cardinals = [np.append(0, np.cumsum(cardinals_list[i])) for i in range(len(p_list))]
