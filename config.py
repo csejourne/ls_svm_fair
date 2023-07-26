@@ -1,6 +1,17 @@
 import json
+import numpy as np
 import log_utils
 from pathlib import Path, WindowsPath, PosixPath
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NpEncoder, self).default(obj)
 
 class Config(object):
     """Class to handle experiment parameters
@@ -8,7 +19,7 @@ class Config(object):
     Args:
         json_path: (:class:`str` or :class:`dict` or :class:`pathlib.Path`)
     """
-    def __init__(self, json_path=None):
+    def __init__(self, json_path=None, cls=NpEncoder):
 
         if type(json_path) == str:
             with open(json_path) as f:
@@ -60,11 +71,11 @@ class Config(object):
         """
         if type(json_path) == str:
             with open(json_path, 'w') as f:
-                json.dump(self.__dict__, f, indent=4)
+                json.dump(self.__dict__, f, indent=4, cls=NpEncoder)
 
         elif type(json_path) is WindowsPath or type(json_path) is PosixPath:
             with json_path.open(mode='w') as f:
-                json.dump(self.__dict__, f, indent=4)
+                json.dump(self.__dict__, f, indent=4, cls=NpEncoder)
 
         else:
             raise ValueError("`json_path` must be str or `Path`")

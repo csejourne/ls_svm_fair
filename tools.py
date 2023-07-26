@@ -326,8 +326,8 @@ def comp_fair_expec_constraints(preds, cardinals_test, threshold, with_int=False
 
     Args:
         preds: (dict of array 2D) predictions to be assessed.
+        cardinals_test: list of int
         threshold: float
-        ind_dict: as specified in above functions.
         with_int: (bool) whether to compute the constraints for the output (real) or when taking the sign.
 
     returns:
@@ -357,9 +357,46 @@ def comp_fair_expec_constraints(preds, cardinals_test, threshold, with_int=False
 
     return fair_expec_const
 
-def comp_fair_prob_constraints(preds, ind_dict):
+def comp_fair_prob_constraints(preds, cardinals_test, threshold):
     """ Computes the value of the fairness constraints w.r.t TO PROBABILITIES, to see how well they are respected by `pred_func`.
     The equations are (from Solomon book):
+        * P(R = 1 | Y=1, S=0) = P(R = 1 | Y=1, S=1) 
+        * P(R = 1 | Y=0, S=0) = P(R = 1 | Y=0, S=1) 
+
+    Args:
+        preds: (dict of array 2D) predictions to be assessed.
+        cardinals_test: list of int
+        threshold: float
+        with_int: (bool) whether to compute the constraints for the output (real) or when taking the sign.
+
+    returns:
+        tuple of scalars
+    """ 
+    assert preds.keys() == set([('pos', 0), ('pos',1), ('neg', 1), ('neg', 0)])
+    nb_loops_test = preds[('pos', 0)].shape[0]
+    g_fair = {}
+    g_fair[("pos", 0)] = np.zeros((nb_loops_test, cardinals_test[0]))
+    g_fair[("pos", 1)] = np.zeros((nb_loops_test, cardinals_test[1]))
+    g_fair[("neg", 0)] = np.zeros((nb_loops_test, cardinals_test[2]))
+    g_fair[("neg", 1)] = np.zeros((nb_loops_test, cardinals_test[3]))
+
+    for key in preds.keys():
+        g_fair[key] = np.sign(preds[key] - threshold)
+        g_fair[key][g_fair[key] < 0] = 0
+
+    fair_probs_const = {}
+    # Positive constraint
+    fair_probs_const[('pos', 0)] = 1/(nb_loops_test * cardinals_test[0]) * np.sum(g_fair[('pos', 0)])
+    fair_probs_const[('pos', 1)] = 1/(nb_loops_test * cardinals_test[1]) * np.sum(g_fair[('pos', 1)])
+    fair_probs_const[('neg', 0)] = 1/(nb_loops_test * cardinals_test[2]) * np.sum(g_fair[('neg', 0)])
+    fair_probs_const[('neg', 1)] = 1/(nb_loops_test * cardinals_test[3]) * np.sum(g_fair[('neg', 1)])
+
+    return fair_probs_const
+
+
+def comp_fair_prob_constraints_old(preds, ind_dict):
+    """ Computes the value of the fairness constraints w.r.t TO PROBABILITIES, to see how well they are respected by `pred_func`.
+    The equations are (from Solomon book), we thus compute those 4 quantities:
         * P(R = 1 | Y=1, S=0) = P(R = 1 | Y=1, S=1) 
         * P(R = 1 | Y=0, S=0) = P(R = 1 | Y=0, S=1) 
 
@@ -404,7 +441,7 @@ def get_metrics(preds, y, ind_dict):
     """ The metrics that interests us.
     TODO: refactor this function so that preds can be 2D, like comp_fair_* functions.
     * Diff of False Positive Rate (FPR) between the sensitive label.
-    * Diff of False Negative Rate (FPR) between the sensitive label.
+    * Diff of False Negative Rate (FNR) between the sensitive label.
     * precision
     * recall
     TODO: change it so preds can be a 2D array? would be more efficient than a loop in `run.py`.
@@ -753,6 +790,26 @@ def build_tilde_F_n(Delta, E_app):
     a22 = float(Delta_neg.T @ E_app @ Delta_neg)
     tilde_F_n = np.array([[a22, -a21], [-a12, a11]])
     return tilde_F_n
+
+def comp_theo_fair_probs_constraints(expecs, varis, thresh):
+    """
+    The parameters in the arrays should be ordered as follow: (1, 0), (1, 1), (-1, 0), (-1, 1)
+    Args:
+        expecs: array of k x 1
+        varis: array of k x 1
+        thresh: float
+    returns:
+        errors: array of k x 1
+    """
+    assert expecs.shape == varis.shape
+    tmp = np.zeros(expecs.shape) 
+    tmp[0] = (thresh - expecs[0] )/np.sqrt(varis[0])
+    tmp[1] = (thresh - expecs[1] )/np.sqrt(varis[1])
+    tmp[2] = (thresh - expecs[2] )/np.sqrt(varis[2])
+    tmp[3] = (thresh - expecs[3] )/np.sqrt(varis[3])
+    constraints = 1/2 * erfc(tmp/np.sqrt(2))
+
+    return np.squeeze(constraints)
 
 def missclass_errors_theo(expecs, varis, thresh):
     """
