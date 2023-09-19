@@ -1,4 +1,5 @@
 import numpy as np
+import copy 
 import numpy.random as rng
 from scipy.spatial.distance import pdist, squareform, cdist
 from scipy.special import erfc
@@ -288,37 +289,6 @@ def decision_unfair(X, b, alpha, sigma, x_q):
 
     return pred
 
-def comp_fair_expec_constraints_old(preds, ind_dict, with_int=False):
-    """ Computes the value of the fairness constraints, to see how well they are respected by `pred_func`.
-    NOTE: this function computes the approximated expectation of conditional variables, not the probabilities of errors.
-
-    Args:
-        preds: (array 2D) predictions to be assessed.
-        ind_dict: as specified in above functions.
-        with_int: (bool) whether to compute the constraints for the output (real) or when taking the sign.
-
-    returns:
-        tuple of scalars
-    """ 
-    if with_int:
-        preds = np.sign(preds)
-
-    for key in ind_dict.keys():
-        assert  ind_dict[key].shape[1] == 1
-
-    fair_expec_const = {}
-    # Positive constraint
-    card0 = np.sum(ind_dict[('pos', 0)]) 
-    card1 = np.sum(ind_dict[('pos', 1)]) 
-    fair_expec_const[('pos', 0)] = 1/card0 * np.sum(preds * ind_dict[('pos', 0)].T)
-    fair_expec_const[('pos', 1)] = 1/card1 * np.sum(preds * ind_dict[('pos', 1)].T)
-    # Negative constraint
-    card0 = np.sum(ind_dict[('neg', 0)])
-    card1 = np.sum(ind_dict[('neg', 1)])
-    fair_expec_const[('neg', 0)] = 1/card0 * np.sum(preds * ind_dict[('neg', 0)].T)
-    fair_expec_const[('neg', 1)] = 1/card1 * np.sum(preds * ind_dict[('neg', 1)].T)
-
-    return fair_expec_const
 
 def comp_fair_expec_constraints(preds, cardinals_test, threshold, with_int=False):
     """ Computes the value of the fairness constraints, to see how well they are respected by `pred_func`.
@@ -373,68 +343,16 @@ def comp_fair_prob_constraints(preds, cardinals_test, threshold):
         tuple of scalars
     """ 
     assert preds.keys() == set([('pos', 0), ('pos',1), ('neg', 1), ('neg', 0)])
-    nb_loops_test = preds[('pos', 0)].shape[0]
-    g_fair = {}
-    g_fair[("pos", 0)] = np.zeros((nb_loops_test, cardinals_test[0]))
-    g_fair[("pos", 1)] = np.zeros((nb_loops_test, cardinals_test[1]))
-    g_fair[("neg", 0)] = np.zeros((nb_loops_test, cardinals_test[2]))
-    g_fair[("neg", 1)] = np.zeros((nb_loops_test, cardinals_test[3]))
-
-    for key in preds.keys():
-        g_fair[key] = np.sign(preds[key] - threshold)
-        g_fair[key][g_fair[key] < 0] = 0
-
-    fair_probs_const = {}
-    # Positive constraint
-    fair_probs_const[('pos', 0)] = 1/(nb_loops_test * cardinals_test[0]) * np.sum(g_fair[('pos', 0)])
-    fair_probs_const[('pos', 1)] = 1/(nb_loops_test * cardinals_test[1]) * np.sum(g_fair[('pos', 1)])
-    fair_probs_const[('neg', 0)] = 1/(nb_loops_test * cardinals_test[2]) * np.sum(g_fair[('neg', 0)])
-    fair_probs_const[('neg', 1)] = 1/(nb_loops_test * cardinals_test[3]) * np.sum(g_fair[('neg', 1)])
-
-    return fair_probs_const
-
-
-def comp_fair_prob_constraints_old(preds, ind_dict):
-    """ Computes the value of the fairness constraints w.r.t TO PROBABILITIES, to see how well they are respected by `pred_func`.
-    The equations are (from Solomon book), we thus compute those 4 quantities:
-        * P(R = 1 | Y=1, S=0) = P(R = 1 | Y=1, S=1) 
-        * P(R = 1 | Y=0, S=0) = P(R = 1 | Y=0, S=1) 
-
-    Args:
-        preds: (array 1D) predictions to be assessed.
-        ind_dict: as specified in above functions.
-        with_int: (bool) whether to compute the constraints for the output (real) or when taking the sign.
-
-    returns:
-        dictionary with probabilities
-    """ 
-    preds = np.sign(preds) # we are interested in integer value only in this case.
-    nb_loops, _ = preds.shape
+    g_fair = copy.deepcopy(preds)
+    for key in g_fair.keys():
+        g_fair[key] = g_fair[key] - threshold
+        g_fair[key] = np.sign(g_fair[key]) # we are interested in integer value only in this case.
     fair_prob_const = {}
 
-    for key in ind_dict.keys():
-        assert  ind_dict[key].shape[1] == 1
-
     # Positive constraint
-    card0 = np.sum(ind_dict[('pos', 0)]) * nb_loops
-    card1 = np.sum(ind_dict[('pos', 1)]) * nb_loops
-    pos_sens_0 = preds * ind_dict[('pos', 0)].T 
-    pos_sens_0[pos_sens_0 < 0] = 0 #we keep only the positive values
-    pos_sens_1 = preds * ind_dict[('pos', 1)].T 
-    pos_sens_1[pos_sens_1 < 0] = 0 #we keep only the positive values
-    fair_prob_const[('pos', 0)] = 1/card0 * np.sum(pos_sens_0)
-    fair_prob_const[('pos', 1)] = 1/card1 * np.sum(pos_sens_1)
-
-    # Negative constraint
-    card0 = np.sum(ind_dict[('neg', 0)]) * nb_loops
-    card1 = np.sum(ind_dict[('neg', 1)]) * nb_loops
-    neg_sens_0 = preds * ind_dict[('neg', 0)].T 
-    neg_sens_0[neg_sens_0 < 0] = 0 #we keep only the positive values
-    neg_sens_1 = preds * ind_dict[('neg', 1)].T 
-    neg_sens_1[neg_sens_1 < 0] = 0 #we keep only the positive values
-    fair_prob_const[('neg', 0)] = 1/card0 * np.sum(neg_sens_0)
-    fair_prob_const[('neg', 1)] = 1/card1 * np.sum(neg_sens_1)
-
+    for key in g_fair.keys(): 
+        card = g_fair[key].shape[0] * g_fair[key].shape[1]
+        fair_prob_const[key] = np.sum(g_fair[key] > 0)/card 
     return fair_prob_const
     
 def get_metrics(preds, y, ind_dict):
@@ -821,6 +739,35 @@ def missclass_errors_theo(expecs, varis, thresh):
     returns:
         errors: array of k x 1
     """
+    assert expecs.shape == varis.shape
+    tmp = np.zeros(expecs.shape) 
+    tmp[0] = (expecs[0] - thresh)/np.sqrt(varis[0])
+    tmp[1] = (expecs[1] - thresh)/np.sqrt(varis[1])
+    tmp[2] = (thresh - expecs[2])/np.sqrt(varis[2])
+    tmp[3] = (thresh - expecs[3])/np.sqrt(varis[3])
+    errors = 1/2 * erfc(tmp/np.sqrt(2))
+
+    return np.squeeze(errors)
+
+def missclass_errors_exp(g_fair, thresh):
+    """
+    Args:
+        g_fair: dict with keys ('pos', 0), ('pos', 1), ('neg', 0), ('neg', 1)
+        thresh: float for threshold (NOTE: we need to deal with the constant bias)
+    """
+    length = len(g_fair[('pos', 0)].flatten())
+    errors = np.zeros(4)
+    tmp = np.zeros((4, length))
+    tmp[0] = np.sign(g_fair[('pos', 0)].flatten() - thresh)
+    tmp[1] = np.sign(g_fair[('pos', 1)].flatten() - thresh)
+    tmp[2] = np.sign(g_fair[('neg', 0)].flatten() - thresh)
+    tmp[3] = np.sign(g_fair[('neg', 1)].flatten() - thresh)
+
+    # Checks the case where the tolerance makes it so that we get the 0 sign.
+    assert np.argwhere(tmp[0] == 0).size == 0
+    assert np.argwhere(tmp[1] == 0).size == 0
+    assert np.argwhere(tmp[2] == 0).size == 0
+    assert np.argwhere(tmp[3] == 0).size == 0
     assert expecs.shape == varis.shape
     tmp = np.zeros(expecs.shape) 
     tmp[0] = (expecs[0] - thresh)/np.sqrt(varis[0])

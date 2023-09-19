@@ -1,6 +1,7 @@
 import numpy as np
 import pickle as pk
 import numpy.random as rng
+import os
 import pprint
 import scipy.linalg as sp_linalg
 import scipy.stats as stats
@@ -37,7 +38,7 @@ save_arr = False
 save_arr_test = False
 get_arr = False
 get_bk = False
-do_test = False
+do_test = True
 plot_test = True
 plot_test_train = False
 
@@ -49,6 +50,7 @@ nb_tests = 1
 nb_loops_test = 10
 cardinals_test = [500, 500, 500, 500] # the base, we apply a coefficient later in the code
 n_test = sum(cardinals_test)
+base_result_dir = "results/distribs/societal_ineq" # is modified throughout the code.
 
 ### Set the seed for reproducibility
 #np.random.seed(12)
@@ -61,14 +63,16 @@ mean_scal = 3
 cov_scal = 2
 print("Experiment begin")
 #print(f"cov_scal is {cov_scal}")
-card_tmp = 4*np.array([90, 10, 90, 10])
-#card_tmp = 16*np.array([42, 22, 66, 116])
+#card_tmp = 4*np.array([90, 10, 90, 10])
+card_tmp = 4*np.array([90, 10, 40, 90])
 #card_tmp = np.array([66, 116, 42, 22])
 
-cardinals_list = [list(card_tmp)]
 #cardinals_list = [list(card_tmp), list(2*card_tmp)]
 #cardinals_list = [list(card_tmp), list(2*card_tmp), list(4*card_tmp)]
-p_list = [128]
+cardinals_list = [list(card_tmp), list(card_tmp), list(card_tmp)]
+p_list = [128, 256, 512]
+#cardinals_list = [list(card_tmp)]
+#p_list = [128]
 
 ### Add info to `config`    
 config = Config()
@@ -210,7 +214,7 @@ for i in range(len(p_list)):
     #           beta_neg**2 * mean_scal * one_hot(1, p) + np.sqrt(1 - beta_neg**2) * noise_neg
     #           ]
     mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
-               -mean_scal * one_hot(0, p), -mean_scal * one_hot(1, p)]
+              -mean_scal * one_hot(0, p), -mean_scal * one_hot(1, p)]
     #mu_list = [mean_scal * one_hot(0, p), mean_scal * one_hot(1, p),
     #           mean_scal * one_hot(2, p), mean_scal * one_hot(3, p)]
     ### "Barycenter" (depending on the signs of eta_pos and eta_neg)
@@ -251,6 +255,14 @@ for i in range(len(p_list)):
     ### Add info to `config`
     config.mu_list.append(mu_list)        
     config.cov_list.append(cov_list)        
+    affix = f"n1_{cardinals[0]}_n2_{cardinals[1]}_n3_{cardinals[2]}_n4_{cardinals[3]}_p_{p}"
+    result_dir = base_result_dir + "_" + affix + "/"
+    try:
+        os.mkdir(result_dir)
+        print("creating directory " + result_dir)
+    except OSError as error:
+        pass
+    config.save(result_dir + "config.json")
 
     ### Generate data.
     X, y, sens_labels, ind_dict = gen_dataset(mu_list, cov_list, cardinals)
@@ -518,6 +530,7 @@ for i in range(len(p_list)):
     Classify new data after fitting the fair LS-SVM
     """
     if do_test:
+        print("R_n.T @ Delta @ J = ", R_n.T @ Delta.T @ J)
         for id_test in range(nb_tests):
             print(f"Doing test {(id_test+1)/nb_tests}")
             pred_function_fair = partial(decision_fair, X, b, lambda_pos, lambda_neg, alpha, sigma, ind_dict)
@@ -598,40 +611,23 @@ for i in range(len(p_list)):
                     g_fair[key][loop] = preds_fair[loop, inds]
                     g_unfair[key][loop] = preds_unfair[loop, inds]
                 
-            ### Remove threshold like Zhenyu
-            #preds_fair = preds_fair  # remove threshold
-            #preds_unfair = preds_unfair # remove threshold
-            #preds_fair = preds_fair - threshold # remove threshold
-            #preds_unfair = preds_unfair - threshold # remove threshold
             
             ### Study the results
 
             ## Compare how well both predictions function satisfy fairness properties.
-            #results_fair = get_metrics(preds_fair, y_test, ind_dict_test)
-            #results_unfair = get_metrics(preds_unfair, y_test, ind_dict_test)
-            #fair_expecs_const_int = comp_fair_expec_constraints(preds_fair, ind_dict_test, with_int=True)
-            #fair_probs_const = comp_fair_prob_constraints(preds_fair, ind_dict_test)
-            #unfair_expecs_const_int = comp_fair_expec_constraints(preds_unfair, ind_dict_test, with_int=True)
-            #unfair_probs_const = comp_fair_prob_constraints(preds_unfair, ind_dict_test)
-            #fair_expecs_const = comp_fair_expec_constraints(g_fair, cardinals, threshold)
-            #unfair_expecs_const = comp_fair_expec_constraints(g_unfair, cardinals, threshold)
-            fair_expecs_const = comp_fair_expec_constraints(g_fair, cardinals_test, threshold)
-            unfair_expecs_const = comp_fair_expec_constraints(g_unfair, cardinals_test, threshold)
             fair_probs_const = comp_fair_prob_constraints(g_fair, cardinals_test, threshold)
             unfair_probs_const = comp_fair_prob_constraints(g_unfair, cardinals_test, threshold)
             theo_fair_probs_const = comp_theo_fair_probs_constraints(expecs, varis, threshold)
             theo_unfair_probs_const = comp_theo_fair_probs_constraints(expecs_ext, varis_ext, threshold)
-
-            
-            #print("fair_expecs_const test pos = ", fair_expecs_const[('pos', 0)] - fair_expecs_const[('pos', 1)])
-            #print("fair_expecs_const test neg = ", fair_expecs_const[('neg', 0)] - fair_expecs_const[('neg', 1)])
-            #print("unfair_expecs_const test pos = ", unfair_expecs_const[('pos', 0)] - unfair_expecs_const[('pos', 1)])
-            #print("unfair_expecs_const test neg = ", unfair_expecs_const[('neg', 0)] - unfair_expecs_const[('neg', 1)])
             print("\n")
-            print("fair_probs_const test pos = ", fair_probs_const[('pos', 0)] - fair_probs_const[('pos', 1)])
-            print("fair_probs_const test neg = ", fair_probs_const[('neg', 0)] - fair_probs_const[('neg', 1)])
-            print("unfair_probs_const test pos = ", unfair_probs_const[('pos', 0)] - unfair_probs_const[('pos', 1)])
-            print("unfair_probs_const test neg = ", unfair_probs_const[('neg', 0)] - unfair_probs_const[('neg', 1)])
+            #print("fair_probs_const test pos = ", fair_probs_const[('pos', 0)] - fair_probs_const[('pos', 1)])
+            #print("fair_probs_const test neg = ", fair_probs_const[('neg', 0)] - fair_probs_const[('neg', 1)])
+            #print("unfair_probs_const test pos = ", unfair_probs_const[('pos', 0)] - unfair_probs_const[('pos', 1)])
+            #print("unfair_probs_const test neg = ", unfair_probs_const[('neg', 0)] - unfair_probs_const[('neg', 1)])
+            print("experimental fair_probs_const: ", fair_probs_const)
+            print("experimental unfair_probs_const: ", unfair_probs_const)
+            print("theo fair_probs_const: ", theo_fair_probs_const)
+            print("theo unfair_probs_const: ", theo_unfair_probs_const)
             print("\n")
 
             ## Means
@@ -717,31 +713,31 @@ for i in range(len(p_list)):
         hists = {}
         if plot_test:
             ### Predictions distributions.
-            fig, axs = plt.subplots(2, sharex=True, sharey=True)
+            fig, axs = plt.subplots(2, sharex=True, sharey=True, figsize=(10, 4))
             hists[('pos', 0)] = axs[0].hist(g_fair[('pos', 0)].flatten(), 75, facecolor='blue',
-                            alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                            alpha=0.6, density=True, stacked=True, edgecolor='black', linewidth=1.2)
             hists[('pos', 1)] = axs[0].hist(g_fair[('pos', 1)].flatten(), 75, facecolor='green',
-                            alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                            alpha=0.6, density=True, stacked=True, edgecolor='black', linewidth=1.2)
             hists[('neg', 0)] = axs[0].hist(g_fair[('neg', 0)].flatten(), 75, facecolor='red',
-                            alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                            alpha=0.6, density=True, stacked=True, edgecolor='black', linewidth=1.2)
             hists[('neg', 1)] = axs[0].hist(g_fair[('neg', 1)].flatten(), 75, facecolor='yellow',
-                            alpha=0.4, density=True, stacked=True, edgecolor='black', linewidth=1.2)
+                            alpha=0.6, density=True, stacked=True, edgecolor='black', linewidth=1.2)
             axs[0].axvline(x=threshold, color='red')
             #axs[0].axvline(x=threshold - const_bias, linestyle='-.', color='red')
-            axs[0].set_title("fair LS-SVM", fontsize=20)
-            axs[0].tick_params(axis='x', labelsize=14)
+            axs[0].set_title("fair LS-SVM", fontsize=12)
+            axs[0].tick_params(axis='x', labelsize=12)
             
-            axs[1].hist(g_unfair[('pos', 0)].flatten(), 75, facecolor='blue', alpha=0.4,
+            axs[1].hist(g_unfair[('pos', 0)].flatten(), 75, facecolor='blue', alpha=0.6,
                             density=True, stacked=True, edgecolor='black', linewidth=1.2)
-            axs[1].hist(g_unfair[('pos', 1)].flatten(), 75, facecolor='green', alpha=0.4,
+            axs[1].hist(g_unfair[('pos', 1)].flatten(), 75, facecolor='green', alpha=0.6,
                             density=True, stacked=True, edgecolor='black', linewidth=1.2)
-            axs[1].hist(g_unfair[('neg', 0)].flatten(), 75, facecolor='red', alpha=0.4,
+            axs[1].hist(g_unfair[('neg', 0)].flatten(), 75, facecolor='red', alpha=0.6,
                             density=True, stacked=True, edgecolor='black', linewidth=1.2)
-            axs[1].hist(g_unfair[('neg', 1)].flatten(), 75, facecolor='yellow', alpha=0.4,
+            axs[1].hist(g_unfair[('neg', 1)].flatten(), 75, facecolor='yellow', alpha=0.6,
                             density=True, stacked=True, edgecolor='black', linewidth=1.2)
             axs[1].axvline(x=threshold, color='red')
-            axs[1].set_title("unfair LS-SVM", fontsize=20)
-            axs[1].tick_params(axis='x', labelsize=14)
+            axs[1].set_title("unfair LS-SVM", fontsize=12)
+            axs[1].tick_params(axis='x', labelsize=12)
             
             ### Associated theoretical gaussian
             colors = ['b', 'g', 'r', 'y']
@@ -757,9 +753,10 @@ for i in range(len(p_list)):
             # Create legend
             handles = [Rectangle((0, 0), 1,1,color=c) for c in ['blue', 'green', 'red', 'yellow']]
             labels=["Y = 1, A = 0", "Y = 1, A = 1", "Y = -1, A = 0", "Y = -1, A = 1"]
-            fig.legend(handles, labels, fontsize = 24)
-            fig.suptitle("Test dataset")
-            fig.savefig("results/distribs/zhenyu_setup_fair_formulae.pdf")
+            fig.legend(handles, labels, fontsize = 10)
+            #fig.suptitle("Test dataset")
+            print(f"result_dir is {result_dir}")
+            fig.savefig(result_dir + affix + "comp.pdf", dpi=fig.dpi)
             plt.show()
 
     ### Plot the classification of the training dataset
